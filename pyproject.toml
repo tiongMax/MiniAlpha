@@ -1,0 +1,20 @@
+[project]
+name = "mini-alpha"
+version = "0.1.0"
+description = "A small financial research agent built with an explicit LangGraph."
+requires-python = ">=3.13"
+dependencies = [
+    "langchain-core>=1.5.0",
+    "langchain-google-genai>=2.0.0",
+    "langgraph>=1.2.0,<2",
+    "python-dotenv>=1.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
