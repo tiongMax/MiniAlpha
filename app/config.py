@@ -1,4 +1,4 @@
-"""Application configuration for the Phase 1 CLI."""
+"""Application configuration for the MiniAlpha CLI."""
 
 import os
 
@@ -7,7 +7,18 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 
 def create_model() -> ChatGoogleGenerativeAI:
-    """Build the single Phase 1 model from environment configuration."""
+    """Create the Gemini chat model configured through environment variables.
+
+    ``GEMINI_MODEL`` falls back to ``MODEL_NAME`` and then
+    ``gemini-2.5-flash``. ``GEMINI_API_KEY`` falls back to
+    ``GOOGLE_API_KEY``.
+
+    Returns:
+        A configured Gemini chat-model client.
+
+    Raises:
+        RuntimeError: If no Gemini API key is available.
+    """
     load_dotenv()
 
     model_name = (

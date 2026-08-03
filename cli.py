@@ -1,8 +1,7 @@
-"""Interactive Phase 1 runner that exposes every graph transition."""
+"""Interactive runner that exposes every graph transition."""
 
 import asyncio
 import json
-from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
@@ -10,8 +9,17 @@ from app.agent.graph import build_graph
 from app.config import create_model
 
 
-def _text_content(content: Any) -> str:
-    """Extract display text while ignoring provider metadata content blocks."""
+def _text_content(content: object) -> str:
+    """Extract printable text from a LangChain message payload.
+
+    Args:
+        content: Plain text, provider content blocks, or another message
+            content representation.
+
+    Returns:
+        Concatenated textual content. Provider-only metadata such as Gemini
+        signatures is ignored.
+    """
     if isinstance(content, str):
         return content
     if not isinstance(content, list):
@@ -27,6 +35,16 @@ def _text_content(content: Any) -> str:
 
 
 def _print_message(node: str, message: BaseMessage) -> str | None:
+    """Print one streamed graph message in a human-readable trace format.
+
+    Args:
+        node: Name of the LangGraph node that emitted the message.
+        message: LangChain message emitted in the node update.
+
+    Returns:
+        Final model-answer text for a non-tool-calling ``AIMessage``;
+        otherwise ``None``.
+    """
     if isinstance(message, HumanMessage):
         print(f"[{node}] user: {_text_content(message.content)}")
         return None
@@ -34,6 +52,10 @@ def _print_message(node: str, message: BaseMessage) -> str | None:
     if isinstance(message, ToolMessage):
         print(f"[{node}] tool result ({message.name or 'unknown'}):")
         print(_text_content(message.content))
+        if isinstance(message.artifact, dict):
+            artifact_type = message.artifact.get("artifact_type", "unknown")
+            status = message.artifact.get("status", "unknown")
+            print(f"[{node}] artifact: {artifact_type} ({status})")
         return None
 
     if isinstance(message, AIMessage) and message.tool_calls:
@@ -54,6 +76,19 @@ def _print_message(node: str, message: BaseMessage) -> str | None:
 
 
 async def run_once(user_input: str) -> str | None:
+    """Run one user request through a newly composed research graph.
+
+    Args:
+        user_input: Natural-language question entered in the CLI.
+
+    Returns:
+        Final model answer when the graph emits one, otherwise ``None``.
+
+    Raises:
+        RuntimeError: If required Gemini configuration is missing.
+        Exception: Provider, model, or graph failures not converted into tool
+            error results.
+    """
     graph = build_graph(create_model())
     final_answer = None
 
@@ -67,7 +102,7 @@ async def run_once(user_input: str) -> str | None:
                 print(f"[{node}] {delta}")
                 continue
 
-            messages: list[Any] = delta.get("messages", [])
+            messages: list[BaseMessage] = delta.get("messages", [])
             for message in messages:
                 answer = _print_message(node, message)
                 if answer is not None:
@@ -77,8 +112,9 @@ async def run_once(user_input: str) -> str | None:
 
 
 async def main() -> None:
-    print("MiniAlpha Phase 1")
-    print("The fake provider contains AAPL and MSFT. Type 'quit' to exit.\n")
+    """Run the interactive MiniAlpha command-line session until exit."""
+    print("MiniAlpha Phase 2")
+    print("Company data is retrieved from Yahoo Finance. Type 'quit' to exit.\n")
 
     while True:
         user_input = input("You: ").strip()
