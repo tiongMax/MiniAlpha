@@ -4,7 +4,7 @@ MiniAlpha is a learning project that rebuilds the core research loop behind
 LangAlpha with an explicit LangGraph instead of
 `langchain.agents.create_agent`.
 
-## Phase 6
+## Phase 6 + frontend testing slice
 
 Phase 6 supports independent research requests, durable conversations, and a
 stable live event stream:
@@ -31,6 +31,14 @@ and the published checkpoint pointer; LangGraph owns serialized graph state.
 MiniAlpha does not yet copy LangAlpha's Redis replay, background execution,
 multi-worker coordination, authentication, workspaces, sandboxing, MCP, PTC,
 or subagent infrastructure.
+
+A small React frontend now consumes the Phase 6 API so the agent can be tested
+interactively. It provides a durable thread list, transcript loading, streaming
+assistant text, tool progress, and structured artifact inspection. TanStack
+React Query caches committed thread/transcript server state; provisional SSE
+events remain in a local reducer until the completed transcript is refetched.
+Cancellation and reconnect are intentionally absent until their Phase 7 and 8
+backend contracts exist.
 
 The original stateless endpoint remains available. Each call to it starts with
 fresh graph state.
@@ -78,6 +86,17 @@ Start the API:
 ```powershell
 uv run python -m scripts.run_api --reload
 ```
+
+In a second terminal, start the frontend:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`. The Vite development server proxies API requests
+to `http://127.0.0.1:8000`.
 
 The project launcher selects the event loop required by async psycopg on
 Windows. It affects only this API process and does not modify laptop-wide
@@ -227,3 +246,4 @@ cli.py                           interactive stateless trace runner
 - [Phase 3 API guide](docs/phase-3-api.md)
 - [Phase 4–5 decision log](docs/phase-4-5-decision-log.md)
 - [Phase 4–5 API guide](docs/phase-4-5-api.md)
+- [Frontend architecture and run guide](docs/frontend.md)
