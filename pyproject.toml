@@ -1,6 +1,6 @@
 [project]
 name = "mini-alpha"
-version = "0.2.0"
+version = "0.5.0"
 description = "A small financial research agent built with an explicit LangGraph."
 requires-python = ">=3.13"
 dependencies = [

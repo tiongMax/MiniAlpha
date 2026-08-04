@@ -1,42 +1,36 @@
 # MiniAlpha
 
-MiniAlpha is a learning project that rebuilds the core agent loop behind
-LangAlpha with an explicit LangGraph instead of `langchain.agents.create_agent`.
+MiniAlpha is a learning project that rebuilds the core research loop behind
+LangAlpha with an explicit LangGraph instead of
+`langchain.agents.create_agent`.
 
-## Phase 3
+## Phase 5
 
-Phase 3 exposes the Phase 2 research stack through a small, stateless FastAPI
-server:
+Phase 5 supports both independent research requests and durable conversations:
 
 ```text
 HTTP client
   -> FastAPI
-  -> ResearchAgentService
-  -> explicit LangGraph agent
-  -> get_company_overview tool
-  -> CompanyResearchService
-  -> FinancialDataProvider protocol
-  -> YahooFinanceProvider
-  -> Yahoo Finance
+  -> ThreadResearchService
+       -> conversation repository -> PostgreSQL application tables
+       -> ResearchAgentService -> explicit LangGraph
+                                  -> PostgreSQL checkpoints
+                                  -> company research tool -> Yahoo Finance
 ```
 
-The graph is still built explicitly without `langchain.agents.create_agent`:
+Phase 4 introduced application-owned records for threads, queries, runs, and
+artifacts. Phase 5 compiles the same explicit graph with a PostgreSQL
+checkpointer so later turns resume from the thread's last committed checkpoint.
 
-```text
-user -> model -> tool -> model -> final answer
-```
+This follows LangAlpha's important persistence boundary at learning scale:
+the application database owns request identity, run lifecycle, transcripts,
+and the published checkpoint pointer; LangGraph owns serialized graph state.
+MiniAlpha does not yet copy LangAlpha's Redis, SSE, background execution,
+multi-worker coordination, authentication, workspaces, sandboxing, MCP, PTC,
+or subagent infrastructure.
 
-Provider data is normalized into a `CompanyOverview` domain model before the
-agent sees it. The tool returns both compact model-readable text and a
-structured artifact containing raw numeric values, provider metadata, and a
-schema version.
-
-The API converts internal LangChain messages into a stable response containing
-the final answer, model tool calls, and structured artifacts. Every request is
-independent: there are no threads or server-managed conversation history yet.
-
-There is no PostgreSQL, Redis, frontend, checkpoint persistence, streaming,
-PTC, workspace, sandbox, MCP, or subagent orchestration yet.
+The original stateless endpoint remains available. Each call to it starts with
+fresh graph state.
 
 ## Setup
 
@@ -45,34 +39,107 @@ Copy `.env.example` to `.env`, then set:
 ```dotenv
 GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-2.5-flash
+DATABASE_URL=postgresql://minialpha:minialpha@localhost:5433/minialpha
 ```
 
-Install dependencies and run the CLI:
+Install dependencies:
 
 ```powershell
 uv sync
-uv run python cli.py
 ```
 
-Run the API:
+Start PostgreSQL and initialize the schema:
 
 ```powershell
-uv run uvicorn app.api.main:app --reload
+docker compose up -d postgres
+uv run python -m scripts.setup_database
 ```
 
-Interactive OpenAPI documentation is available at:
+Run `scripts.setup_database` when creating a new database, after intentionally
+removing its Docker volume, or after pulling a new migration. It is safe to
+rerun, but it is not required before every server start.
 
-```text
-http://127.0.0.1:8000/docs
+The Compose service maps host port `5433` to PostgreSQL's container port
+`5432`, allowing it to run beside a local PostgreSQL installation. Stop it
+without deleting data using:
+
+```powershell
+docker compose down
 ```
 
-Check liveness without calling Gemini or Yahoo:
+Use `docker compose down -v` only when intentionally deleting MiniAlpha's
+development database volume.
+
+Start the API:
+
+```powershell
+uv run python -m scripts.run_api --reload
+```
+
+The project launcher selects the event loop required by async psycopg on
+Windows. It affects only this API process and does not modify laptop-wide
+Python or asyncio settings.
+
+Interactive OpenAPI documentation is available at
+`http://127.0.0.1:8000/docs`.
+
+Check process liveness and dependency readiness:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/health
+Invoke-RestMethod http://127.0.0.1:8000/ready
 ```
 
-Submit a research request:
+`/health` only proves the HTTP process is alive. `/ready` also verifies model
+composition and PostgreSQL persistence.
+
+## Durable research
+
+Create a thread and execute its first turn:
+
+```powershell
+$requestKey = [guid]::NewGuid()
+$first = Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/api/v1/threads/messages `
+  -ContentType application/json `
+  -Body (@{
+    messages = @(@{ role = "user"; content = "Analyze Apple." })
+    request_key = $requestKey
+  } | ConvertTo-Json -Depth 4)
+```
+
+Continue from the committed checkpoint without resending history:
+
+```powershell
+$second = Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/api/v1/threads/$($first.thread_id)/messages" `
+  -ContentType application/json `
+  -Body (@{
+    messages = @(@{
+      role = "user"
+      content = "Now compare it with Microsoft."
+    })
+    request_key = [guid]::NewGuid()
+  } | ConvertTo-Json -Depth 4)
+```
+
+Clients should generate one `request_key` UUID per logical request and reuse it
+when retrying that same request. A completed retry returns the stored result
+with `"replayed": true` instead of running Gemini again.
+
+List threads and read the transcript:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/threads
+Invoke-RestMethod `
+  "http://127.0.0.1:8000/api/v1/threads/$($first.thread_id)/messages"
+```
+
+## Stateless research and CLI
+
+Submit one independent API request:
 
 ```powershell
 Invoke-RestMethod `
@@ -82,36 +149,14 @@ Invoke-RestMethod `
   -Body '{"message":"Analyze Apple."}'
 ```
 
-The research endpoint returns:
+Run the interactive stateless CLI:
 
-```json
-{
-  "answer": "...",
-  "tool_calls": [
-    {
-      "name": "get_company_overview",
-      "arguments": {"symbol": "AAPL"}
-    }
-  ],
-  "artifacts": [
-    {
-      "artifact_type": "company_overview",
-      "schema_version": 1,
-      "status": "ok",
-      "data": {}
-    }
-  ]
-}
+```powershell
+uv run python cli.py
 ```
 
-Try:
-
-```text
-Analyze Apple.
-Compare Apple and Microsoft using company facts.
-Give me an overview of BRK-B.
-Hello, what can you do?
-```
+Both delivery paths share `ResearchAgentService`; the durable HTTP path adds
+the thread orchestration and checkpoint configuration around it.
 
 Exercise Yahoo directly without using Gemini:
 
@@ -119,53 +164,49 @@ Exercise Yahoo directly without using Gemini:
 uv run python -m scripts.smoke_company AAPL MSFT BRK-B
 ```
 
-Run the credential-free test suite:
+Yahoo Finance data may be delayed, incomplete, or unavailable. MiniAlpha
+preserves missing values as `None`/`N/A` and does not silently turn them into
+zero. Expected provider and ticker failures remain completed agent results
+with structured error artifacts.
+
+## Verification
+
+Run the credential-free suite and code-quality gates:
 
 ```powershell
 uv run pytest
-```
-
-Run the cleanup and formatting gates:
-
-```powershell
 uv run ruff check .
 uv run ruff format --check .
 ```
 
+The PostgreSQL integration tests are skipped unless their explicit test
+environment variable is enabled. The Phase 4–5 API guide documents the live
+database command.
+
 ## Code map
 
 ```text
-app/config.py                  model configuration
-app/agent/state.py             shared graph state
-app/agent/prompts.py           static agent instructions
-app/agent/tools.py             tool factory and agent-facing formatting
-app/agent/nodes.py             routing
-app/agent/graph.py             explicit StateGraph construction
-app/api/main.py                FastAPI application factory
-app/api/routes/                health and stateless research routes
-app/api/schemas.py             public HTTP contracts
-app/domain/                    normalized data models and expected errors
-app/providers/                 provider protocol and Yahoo implementation
+app/config.py                    model and database configuration
+app/agent/                       explicit graph, state, tools, and routing
+app/api/main.py                  FastAPI factory, lifespan, and error mapping
+app/api/routes/                  health, readiness, stateless, and thread routes
+app/api/schemas.py               strict public HTTP contracts
+app/domain/                      normalized company data and expected errors
+app/persistence/                 repository contract and memory/Postgres adapters
+app/providers/                   provider protocol and Yahoo implementation
 app/services/company_research.py provider-neutral financial-data orchestration
-app/services/research_agent.py transport-neutral graph execution
-scripts/                       live provider smoke checks
-cli.py                         interactive trace runner
+app/services/research_agent.py   transport-neutral graph execution
+app/services/thread_research.py  durable admission, execution, and finalization
+migrations/                      application-owned PostgreSQL schema
+scripts/setup_database.py        Alembic and LangGraph checkpoint initialization
+scripts/run_api.py               psycopg-compatible API launcher
+cli.py                           interactive stateless trace runner
 ```
-
-Yahoo Finance data may be delayed, incomplete, or unavailable. MiniAlpha
-preserves missing values as `None`/`N/A` and does not silently turn them into
-zero.
 
 ## Architecture rationale
 
-The [Phase 2 architecture decision log](docs/phase-2-decision-log.md) explains
-why the provider, service, tool, artifact, error, formatting, prompting,
-typing, and testing boundaries were chosen, including rejected alternatives
-and intentionally deferred work.
-
-The [Phase 3 architecture decision log](docs/phase-3-decision-log.md) explains
-the stateless HTTP contract, shared graph runner, lifecycle composition, and
-error-handling boundaries.
-
-The [Phase 3 API guide](docs/phase-3-api.md) documents endpoint contracts,
-examples, validation, errors, request correlation, and current limitations.
+- [Phase 2 decision log](docs/phase-2-decision-log.md)
+- [Phase 3 decision log](docs/phase-3-decision-log.md)
+- [Phase 3 API guide](docs/phase-3-api.md)
+- [Phase 4–5 decision log](docs/phase-4-5-decision-log.md)
+- [Phase 4–5 API guide](docs/phase-4-5-api.md)
