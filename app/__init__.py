@@ -1,2 +1,1 @@
 """MiniAlpha application package."""
-
