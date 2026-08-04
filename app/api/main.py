@@ -68,11 +68,12 @@ def create_app(
 
     api = FastAPI(
         title="MiniAlpha API",
-        version="0.5.0",
+        version="0.6.0",
         description=(
             "HTTP access to MiniAlpha's explicit LangGraph financial research "
             "agent. Use the stateless research route for independent requests "
-            "or durable thread routes for PostgreSQL-backed conversation memory."
+            "or durable thread routes for PostgreSQL-backed conversation memory "
+            "and live application-owned SSE events."
         ),
         lifespan=lifespan,
     )

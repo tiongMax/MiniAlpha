@@ -4,9 +4,10 @@ MiniAlpha is a learning project that rebuilds the core research loop behind
 LangAlpha with an explicit LangGraph instead of
 `langchain.agents.create_agent`.
 
-## Phase 5
+## Phase 6
 
-Phase 5 supports both independent research requests and durable conversations:
+Phase 6 supports independent research requests, durable conversations, and a
+stable live event stream:
 
 ```text
 HTTP client
@@ -16,16 +17,18 @@ HTTP client
        -> ResearchAgentService -> explicit LangGraph
                                   -> PostgreSQL checkpoints
                                   -> company research tool -> Yahoo Finance
+                                  -> application event translator -> SSE
 ```
 
 Phase 4 introduced application-owned records for threads, queries, runs, and
-artifacts. Phase 5 compiles the same explicit graph with a PostgreSQL
-checkpointer so later turns resume from the thread's last committed checkpoint.
+artifacts. Phase 5 added PostgreSQL checkpoints. Phase 6 translates live graph
+activity into a small application-owned SSE protocol without exposing raw
+LangGraph events.
 
 This follows LangAlpha's important persistence boundary at learning scale:
 the application database owns request identity, run lifecycle, transcripts,
 and the published checkpoint pointer; LangGraph owns serialized graph state.
-MiniAlpha does not yet copy LangAlpha's Redis, SSE, background execution,
+MiniAlpha does not yet copy LangAlpha's Redis replay, background execution,
 multi-worker coordination, authentication, workspaces, sandboxing, MCP, PTC,
 or subagent infrastructure.
 
@@ -124,6 +127,20 @@ $second = Invoke-RestMethod `
     request_key = [guid]::NewGuid()
   } | ConvertTo-Json -Depth 4)
 ```
+
+Stream a new durable turn with `POST` and a streaming HTTP client:
+
+```text
+POST /api/v1/threads/messages/stream
+POST /api/v1/threads/{thread_id}/messages/stream
+Accept: text/event-stream
+```
+
+The stream emits `metadata`, `message_chunk`, `tool_call`, `tool_result`,
+`artifact`, `error`, and `run_end`. `metadata` is first and `run_end` is last.
+A successful `run_end` is emitted only after the terminal PostgreSQL commit.
+The connection still owns execution in Phase 6, so disconnect-safe background
+runs and reconnectable replay remain future work.
 
 Clients should generate one `request_key` UUID per logical request and reuse it
 when retrying that same request. A completed retry returns the stored result

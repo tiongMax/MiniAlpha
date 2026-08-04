@@ -1,9 +1,11 @@
-"""Synchronous durable thread and message endpoints."""
+"""Synchronous and streaming durable thread message endpoints."""
 
+from collections.abc import AsyncIterator
 from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
+from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import get_thread_research_service
 from app.api.schemas import (
@@ -18,6 +20,7 @@ from app.api.schemas import (
     ThreadTurnResponse,
     ToolCallResponse,
 )
+from app.api.sse import SSE_HEADERS, encode_sse
 from app.persistence.models import ConversationThread, ConversationTurn
 from app.services.thread_research import ThreadResearchResult, ThreadResearchService
 
@@ -131,6 +134,49 @@ async def create_thread_message(
     return _message_response(result)
 
 
+async def _stream_response(
+    request: ThreadMessageRequest,
+    service: ThreadResearchService,
+    *,
+    thread_id: UUID | None,
+) -> StreamingResponse:
+    """Admit one run, then expose its stable application events as SSE."""
+    prepared = await service.prepare_stream(
+        request.messages[0].content,
+        thread_id=thread_id,
+        request_key=request.request_key,
+    )
+
+    async def frames() -> AsyncIterator[str]:
+        async for event in service.stream(prepared):
+            yield encode_sse(event)
+
+    actual_thread_id = prepared.admission.run.thread_id
+    headers = {
+        **SSE_HEADERS,
+        "Content-Location": f"/api/v1/threads/{actual_thread_id}/messages",
+    }
+    return StreamingResponse(
+        frames(),
+        media_type="text/event-stream",
+        headers=headers,
+    )
+
+
+@router.post(
+    "/messages/stream",
+    response_class=StreamingResponse,
+    summary="Create a thread and stream its first message",
+    responses={409: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+)
+async def create_thread_message_stream(
+    request: ThreadMessageRequest,
+    service: ThreadService,
+) -> StreamingResponse:
+    """Create a durable thread and stream its first turn as application events."""
+    return await _stream_response(request, service, thread_id=None)
+
+
 @router.post(
     "/{thread_id}/messages",
     response_model=ThreadMessageResponse,
@@ -159,6 +205,25 @@ async def continue_thread(
         f"/api/v1/threads/{result.thread_id}/messages"
     )
     return _message_response(result)
+
+
+@router.post(
+    "/{thread_id}/messages/stream",
+    response_class=StreamingResponse,
+    summary="Continue a durable thread with streaming events",
+    responses={
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+async def continue_thread_stream(
+    thread_id: UUID,
+    request: ThreadMessageRequest,
+    service: ThreadService,
+) -> StreamingResponse:
+    """Stream one new turn from the thread's committed checkpoint."""
+    return await _stream_response(request, service, thread_id=thread_id)
 
 
 @router.get(

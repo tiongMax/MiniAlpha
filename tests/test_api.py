@@ -29,11 +29,11 @@ def test_health_is_independent_of_external_services() -> None:
     assert response.json() == {
         "status": "ok",
         "service": "mini-alpha",
-        "phase": 5,
+        "phase": 6,
     }
 
 
-def test_openapi_describes_phase_five_routes() -> None:
+def test_openapi_describes_phase_six_routes() -> None:
     """Verify generated documentation advertises both delivery modes."""
     app = create_app(research_service(SuccessfulGraph()))
 
@@ -41,7 +41,7 @@ def test_openapi_describes_phase_five_routes() -> None:
 
     assert response.status_code == 200
     schema = response.json()
-    assert schema["info"]["version"] == "0.5.0"
+    assert schema["info"]["version"] == "0.6.0"
     assert "durable thread routes" in schema["info"]["description"]
     assert set(schema["paths"]) >= {
         "/health",
@@ -49,8 +49,10 @@ def test_openapi_describes_phase_five_routes() -> None:
         "/api/v1/research",
         "/api/v1/threads",
         "/api/v1/threads/messages",
+        "/api/v1/threads/messages/stream",
         "/api/v1/threads/{thread_id}",
         "/api/v1/threads/{thread_id}/messages",
+        "/api/v1/threads/{thread_id}/messages/stream",
     }
 
 
@@ -99,7 +101,7 @@ def test_readiness_requires_persistent_composition() -> None:
     assert ready_response.json() == {
         "status": "ready",
         "service": "mini-alpha",
-        "phase": 5,
+        "phase": 6,
         "persistence": "ready",
     }
 

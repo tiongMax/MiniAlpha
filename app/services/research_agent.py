@@ -1,7 +1,8 @@
 """Application service for stateless and checkpointed graph execution."""
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 from uuid import UUID
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
@@ -49,6 +50,32 @@ class ResearchExecutionContext:
     checkpoint_id: str | None
 
 
+AgentEventName = Literal[
+    "message_chunk",
+    "tool_call",
+    "tool_result",
+    "artifact",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class AgentStreamEvent:
+    """One transport-neutral live update translated from LangGraph."""
+
+    event: AgentEventName
+    data: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class AgentStreamComplete:
+    """Private terminal item carrying the authoritative graph result."""
+
+    result: ResearchResult
+
+
+AgentStreamItem = AgentStreamEvent | AgentStreamComplete
+
+
 class ResearchGraph(Protocol):
     """Graph behavior required by the research application service."""
 
@@ -58,6 +85,16 @@ class ResearchGraph(Protocol):
         config: RunnableConfig | None = None,
     ) -> ResearchState:
         """Execute a graph from the supplied state."""
+        ...
+
+    def astream(
+        self,
+        input: ResearchState,
+        config: RunnableConfig | None = None,
+        *,
+        stream_mode: list[str],
+    ) -> AsyncIterator[tuple[str, object]]:
+        """Stream graph messages and state values."""
         ...
 
 
@@ -111,6 +148,122 @@ class ResearchAgentService:
                 run_id=run_id,
                 checkpoint_id=checkpoint_id,
             ),
+        )
+
+    async def stream_thread(
+        self,
+        message: str,
+        *,
+        thread_id: UUID,
+        run_id: UUID,
+        checkpoint_id: str | None,
+    ) -> AsyncIterator[AgentStreamItem]:
+        """Stream one checkpointed turn and finish with its stable result."""
+        context = ResearchExecutionContext(
+            thread_id=thread_id,
+            run_id=run_id,
+            checkpoint_id=checkpoint_id,
+        )
+        config = self._execution_config(context)
+        marker_id = f"run:{run_id}"
+        human_message = HumanMessage(content=message, id=marker_id)
+        final_state: ResearchState | None = None
+        seen_tool_calls: set[str] = set()
+        seen_tool_results: set[str] = set()
+
+        try:
+            async for mode, payload in self._graph.astream(
+                {"messages": [human_message]},
+                config=config,
+                stream_mode=["messages", "values"],
+            ):
+                if mode == "messages":
+                    chunk_event = self._message_chunk_event(payload)
+                    if chunk_event is not None:
+                        yield chunk_event
+                    continue
+                if mode != "values" or not isinstance(payload, dict):
+                    continue
+
+                state = cast(ResearchState, payload)
+                final_state = state
+                messages = self._messages_after_marker(state["messages"], marker_id)
+                for graph_message in messages:
+                    if isinstance(graph_message, AIMessage):
+                        for index, call in enumerate(graph_message.tool_calls):
+                            call_id = str(
+                                call.get("id")
+                                or f"{graph_message.id or 'message'}:{index}"
+                            )
+                            if call_id in seen_tool_calls:
+                                continue
+                            raw_arguments = call.get("args", {})
+                            arguments = (
+                                cast(dict[str, object], raw_arguments)
+                                if isinstance(raw_arguments, dict)
+                                else {}
+                            )
+                            seen_tool_calls.add(call_id)
+                            yield AgentStreamEvent(
+                                event="tool_call",
+                                data={
+                                    "tool_call_id": call_id,
+                                    "name": str(call.get("name", "")),
+                                    "arguments": arguments,
+                                },
+                            )
+                    if not isinstance(graph_message, ToolMessage):
+                        continue
+                    call_id = graph_message.tool_call_id
+                    if call_id in seen_tool_results:
+                        continue
+                    seen_tool_results.add(call_id)
+                    artifact = (
+                        cast(dict[str, object], graph_message.artifact)
+                        if isinstance(graph_message.artifact, dict)
+                        else None
+                    )
+                    status = (
+                        str(artifact.get("status", "ok"))
+                        if artifact is not None
+                        else "ok"
+                    )
+                    yield AgentStreamEvent(
+                        event="tool_result",
+                        data={
+                            "tool_call_id": call_id,
+                            "name": graph_message.name or "unknown",
+                            "status": status,
+                            "summary": text_content(graph_message.content),
+                        },
+                    )
+                    if artifact is not None:
+                        yield AgentStreamEvent(event="artifact", data=artifact)
+        except ResearchExecutionError:
+            raise
+        except Exception as error:
+            raise ResearchExecutionError(
+                "The research agent could not complete the request."
+            ) from error
+
+        if final_state is None:
+            raise ResearchExecutionError(
+                "The research agent completed without a final state."
+            )
+        current_messages = self._messages_after_marker(
+            final_state["messages"],
+            marker_id,
+        )
+        result = self._extract_result(current_messages)
+        checkpoint = await self._result_checkpoint_id(context)
+        yield AgentStreamComplete(
+            result=ResearchResult(
+                answer=result.answer,
+                tool_calls=result.tool_calls,
+                tool_results=result.tool_results,
+                artifacts=result.artifacts,
+                checkpoint_id=checkpoint,
+            )
         )
 
     async def _execute(
@@ -233,6 +386,26 @@ class ResearchAgentService:
             "run_id": str(context.run_id),
         }
         return config
+
+    @staticmethod
+    def _message_chunk_event(payload: object) -> AgentStreamEvent | None:
+        """Translate one LangGraph messages-mode payload into assistant text."""
+        if not isinstance(payload, tuple) or len(payload) != 2:
+            return None
+        message, metadata = payload
+        if not isinstance(message, AIMessage):
+            return None
+        if isinstance(metadata, dict):
+            node = metadata.get("langgraph_node")
+            if node is not None and node != "model":
+                return None
+        content = text_content(message.content)
+        if not content:
+            return None
+        return AgentStreamEvent(
+            event="message_chunk",
+            data={"delta": content},
+        )
 
     @staticmethod
     def _messages_after_marker(

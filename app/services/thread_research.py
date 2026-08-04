@@ -1,13 +1,16 @@
 """Transport-neutral orchestration for durable research turns."""
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Protocol, cast
 from uuid import UUID
 
+from app.events.models import RunEvent, RunEventProducer
 from app.persistence.models import (
     ConversationRun,
     ConversationThread,
     ConversationTurn,
+    RunAdmission,
     StoredArtifact,
     ThreadPage,
 )
@@ -18,6 +21,9 @@ from app.persistence.repository import (
     ThreadNotFoundError,
 )
 from app.services.research_agent import (
+    AgentStreamComplete,
+    AgentStreamEvent,
+    AgentStreamItem,
     ExecutedToolCall,
     ResearchExecutionError,
     ResearchResult,
@@ -37,6 +43,14 @@ class ThreadResearchResult:
     replayed: bool
 
 
+@dataclass(frozen=True, slots=True)
+class ThreadResearchStream:
+    """Pre-admitted stream whose HTTP status can still fail normally."""
+
+    admission: RunAdmission
+    replay: ThreadResearchResult | None
+
+
 class ThreadResearchAgent(Protocol):
     """Checkpointed graph behavior required by the thread orchestrator."""
 
@@ -49,6 +63,17 @@ class ThreadResearchAgent(Protocol):
         checkpoint_id: str | None,
     ) -> ResearchResult:
         """Execute one message from a committed thread checkpoint."""
+        ...
+
+    def stream_thread(
+        self,
+        message: str,
+        *,
+        thread_id: UUID,
+        run_id: UUID,
+        checkpoint_id: str | None,
+    ) -> AsyncIterator[AgentStreamItem]:
+        """Stream one message from a committed conversation checkpoint."""
         ...
 
 
@@ -153,6 +178,131 @@ class ThreadResearchService:
             raise
 
         return self._completed_result(turn, replayed=False)
+
+    async def prepare_stream(
+        self,
+        message: str,
+        *,
+        thread_id: UUID | None,
+        request_key: UUID | None,
+    ) -> ThreadResearchStream:
+        """Admit a run before opening HTTP streaming response headers."""
+        admission = await self._repository.admit_run(
+            thread_id=thread_id,
+            message=message,
+            request_key=request_key,
+        )
+        replay = await self._replay(admission.run) if admission.replayed else None
+        return ThreadResearchStream(admission=admission, replay=replay)
+
+    async def stream(
+        self,
+        stream: ThreadResearchStream,
+    ) -> AsyncIterator[RunEvent]:
+        """Produce one ordered SSE-ready run while preserving commit ordering."""
+        run = stream.admission.run
+        producer = RunEventProducer(run_id=run.run_id, thread_id=run.thread_id)
+        yield producer.emit(
+            "metadata",
+            {
+                "turn_index": run.turn_index,
+                "replayed": stream.replay is not None,
+            },
+        )
+
+        if stream.replay is not None:
+            for index, call in enumerate(stream.replay.tool_calls):
+                yield producer.emit(
+                    "tool_call",
+                    {
+                        "tool_call_id": f"replay-tool-{index}",
+                        "name": call.name,
+                        "arguments": call.arguments,
+                    },
+                )
+            for artifact in stream.replay.artifacts:
+                yield producer.emit("artifact", artifact)
+            if stream.replay.answer:
+                yield producer.emit(
+                    "message_chunk",
+                    {"delta": stream.replay.answer},
+                )
+            yield producer.emit("run_end", {"status": "completed"})
+            return
+
+        result: ResearchResult | None = None
+        try:
+            async for item in self._agent.stream_thread(
+                run.message,
+                thread_id=run.thread_id,
+                run_id=run.run_id,
+                checkpoint_id=stream.admission.from_checkpoint_id,
+            ):
+                if isinstance(item, AgentStreamEvent):
+                    yield producer.emit(item.event, item.data)
+                elif isinstance(item, AgentStreamComplete):
+                    result = item.result
+
+            if result is None or result.checkpoint_id is None:
+                raise ResearchExecutionError(
+                    "The research agent completed without a readable checkpoint."
+                )
+
+            turn = await self._repository.complete_run(
+                run.run_id,
+                expected_checkpoint_id=stream.admission.from_checkpoint_id,
+                checkpoint_id=result.checkpoint_id,
+                answer=result.answer,
+                tool_calls=[
+                    {"name": call.name, "arguments": call.arguments}
+                    for call in result.tool_calls
+                ],
+                artifacts=result.artifacts,
+            )
+        except CheckpointConflictError:
+            await self._repository.fail_run(
+                run.run_id,
+                error_code="thread_conflict",
+                error_message=(
+                    "The research thread changed while the request was running."
+                ),
+            )
+            yield producer.emit(
+                "error",
+                {
+                    "code": "thread_conflict",
+                    "message": "The research thread changed during execution.",
+                },
+            )
+            yield producer.emit(
+                "run_end",
+                {"status": "error", "error_code": "thread_conflict"},
+            )
+            return
+        except ResearchExecutionError:
+            await self._repository.fail_run(
+                run.run_id,
+                error_code="research_failed",
+                error_message="The research agent could not complete the request.",
+            )
+            yield producer.emit(
+                "error",
+                {
+                    "code": "research_failed",
+                    "message": "The research agent could not complete the request.",
+                },
+            )
+            yield producer.emit(
+                "run_end",
+                {"status": "error", "error_code": "research_failed"},
+            )
+            return
+
+        completed = self._completed_result(turn, replayed=False)
+        yield producer.emit(
+            "run_end",
+            {"status": "completed", "turn_index": completed.turn_index},
+        )
 
     async def get_thread(self, thread_id: UUID) -> ConversationThread:
         """Return one durable thread or raise a controlled not-found error."""
