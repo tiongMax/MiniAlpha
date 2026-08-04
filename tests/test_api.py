@@ -1,4 +1,4 @@
-"""Credential-free contract tests for the Phase 3 FastAPI layer."""
+"""Credential-free contracts for the stateless and durable FastAPI routes."""
 
 import asyncio
 from typing import cast
@@ -66,6 +66,27 @@ def test_health_is_independent_of_external_services() -> None:
         "status": "ok",
         "service": "mini-alpha",
         "phase": 5,
+    }
+
+
+def test_openapi_describes_phase_five_routes() -> None:
+    """Verify generated documentation advertises both delivery modes."""
+    app = create_app(research_service(SuccessfulGraph()))
+
+    response = api_request(app, "GET", "/openapi.json")
+
+    assert response.status_code == 200
+    schema = response.json()
+    assert schema["info"]["version"] == "0.5.0"
+    assert "durable thread routes" in schema["info"]["description"]
+    assert set(schema["paths"]) >= {
+        "/health",
+        "/ready",
+        "/api/v1/research",
+        "/api/v1/threads",
+        "/api/v1/threads/messages",
+        "/api/v1/threads/{thread_id}",
+        "/api/v1/threads/{thread_id}/messages",
     }
 
 

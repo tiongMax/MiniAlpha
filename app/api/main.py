@@ -101,10 +101,11 @@ def create_app(
 
     api = FastAPI(
         title="MiniAlpha API",
-        version="0.2.0",
+        version="0.5.0",
         description=(
-            "Stateless HTTP access to MiniAlpha's explicit LangGraph financial "
-            "research agent. Each request starts with fresh conversation state."
+            "HTTP access to MiniAlpha's explicit LangGraph financial research "
+            "agent. Use the stateless research route for independent requests "
+            "or durable thread routes for PostgreSQL-backed conversation memory."
         ),
         lifespan=lifespan,
     )
