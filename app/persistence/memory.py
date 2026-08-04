@@ -219,6 +219,17 @@ class InMemoryConversationRepository:
             run_id = self._request_keys.get(request_key)
             return self._runs.get(run_id) if run_id is not None else None
 
+    async def get_turn(self, run_id: UUID) -> ConversationTurn | None:
+        """Return one in-memory run and its artifacts."""
+        async with self._lock:
+            run = self._runs.get(run_id)
+            if run is None:
+                return None
+            return ConversationTurn(
+                run=run,
+                artifacts=self._artifacts.get(run_id, ()),
+            )
+
     async def list_turns(self, thread_id: UUID) -> tuple[ConversationTurn, ...]:
         """Return all runs and their artifacts in transcript order."""
         async with self._lock:

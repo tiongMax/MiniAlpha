@@ -46,17 +46,27 @@ def test_postgres_repository_completes_and_replays_a_run() -> None:
                 checkpoint_id="checkpoint-integration",
                 answer="Apple is profitable.",
                 tool_calls=[],
-                artifacts=[],
+                artifacts=[
+                    {
+                        "artifact_type": "company_overview",
+                        "schema_version": 1,
+                        "status": "ok",
+                        "data": {"symbol": "AAPL"},
+                    }
+                ],
             )
             replay = await repository.admit_run(
                 thread_id=thread_id,
                 message="Analyze Apple.",
                 request_key=request_key,
             )
+            stored_turn = await repository.get_turn(admission.run.run_id)
 
             assert completed.run.status == "completed"
             assert replay.replayed is True
             assert replay.run.run_id == admission.run.run_id
+            assert stored_turn is not None
+            assert stored_turn.artifacts[0].data == {"symbol": "AAPL"}
         finally:
             if thread_id is not None:
                 async with pool.connection() as connection:

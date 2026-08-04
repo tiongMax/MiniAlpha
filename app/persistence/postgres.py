@@ -310,6 +310,18 @@ class PostgresConversationRepository:
             async with connection.cursor(row_factory=dict_row) as cursor:
                 return await self._fetch_run_by_request_key(cursor, request_key)
 
+    async def get_turn(self, run_id: UUID) -> ConversationTurn | None:
+        """Return one PostgreSQL run and its ordered artifacts."""
+        async with self._pool.connection() as connection:
+            async with connection.cursor(row_factory=dict_row) as cursor:
+                run = await self._fetch_run(cursor, run_id)
+                if run is None:
+                    return None
+                return ConversationTurn(
+                    run=run,
+                    artifacts=await self._fetch_artifacts(cursor, run_id),
+                )
+
     async def list_turns(self, thread_id: UUID) -> tuple[ConversationTurn, ...]:
         """Return all persisted attempts for one thread."""
         if await self.get_thread(thread_id) is None:

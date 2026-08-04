@@ -92,6 +92,10 @@ class ConversationRepository(Protocol):
         """Resolve one client idempotency key."""
         ...
 
+    async def get_turn(self, run_id: UUID) -> ConversationTurn | None:
+        """Return one run and its ordered artifacts."""
+        ...
+
     async def list_turns(self, thread_id: UUID) -> tuple[ConversationTurn, ...]:
         """Return a thread transcript ordered by turn and attempt."""
         ...
