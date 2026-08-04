@@ -1,4 +1,4 @@
-"""State shared by the Phase 1 graph nodes."""
+"""State shared by the custom LangGraph nodes."""
 
 from typing import Annotated
 
@@ -8,7 +8,12 @@ from typing_extensions import TypedDict
 
 
 class ResearchState(TypedDict):
-    """The smallest useful agent state: an append-only message conversation."""
+    """Append-only state passed between research graph nodes.
+
+    Attributes:
+        messages: Conversation messages accumulated by LangGraph. The
+            ``add_messages`` reducer appends new messages and merges updates by
+            message ID instead of replacing the complete conversation.
+    """
 
     messages: Annotated[list[AnyMessage], add_messages]
-
