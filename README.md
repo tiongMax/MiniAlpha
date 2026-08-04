@@ -57,8 +57,12 @@ uv run python cli.py
 Run the API:
 
 ```powershell
-uv run uvicorn app.api.main:app --reload
+uv run python -m scripts.run_api --reload
 ```
+
+The project launcher selects the event loop required by async psycopg on
+Windows. It changes only this API process; it does not modify laptop-wide
+Python or asyncio settings.
 
 Interactive OpenAPI documentation is available at:
 
