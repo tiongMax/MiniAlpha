@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+from typing import cast
 from uuid import uuid4
 
 import pytest
@@ -18,16 +19,18 @@ TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 )
 def test_postgres_repository_completes_and_replays_a_run() -> None:
     """Verify the psycopg repository against a migrated test database."""
+    database_url = TEST_DATABASE_URL
+    assert database_url is not None
 
     async def exercise() -> None:
         pool = AsyncConnectionPool(
-            conninfo=TEST_DATABASE_URL,
+            conninfo=database_url,
             min_size=1,
             max_size=2,
             open=False,
         )
         await pool.open()
-        repository = PostgresConversationRepository(pool)
+        repository = PostgresConversationRepository(cast(AsyncConnectionPool, pool))
         thread_id = None
         try:
             request_key = uuid4()
