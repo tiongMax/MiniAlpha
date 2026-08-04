@@ -1,12 +1,15 @@
-"""Application configuration for the MiniAlpha CLI."""
+"""Application configuration for MiniAlpha entry points."""
 
 import os
+from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+
+if TYPE_CHECKING:
+    from langchain_google_genai import ChatGoogleGenerativeAI
 
 
-def create_model() -> ChatGoogleGenerativeAI:
+def create_model() -> "ChatGoogleGenerativeAI":
     """Create the Gemini chat model configured through environment variables.
 
     ``GEMINI_MODEL`` falls back to ``MODEL_NAME`` and then
@@ -19,18 +22,14 @@ def create_model() -> ChatGoogleGenerativeAI:
     Raises:
         RuntimeError: If no Gemini API key is available.
     """
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
     load_dotenv()
 
     model_name = (
-        os.getenv("GEMINI_MODEL")
-        or os.getenv("MODEL_NAME")
-        or "gemini-2.5-flash"
+        os.getenv("GEMINI_MODEL") or os.getenv("MODEL_NAME") or "gemini-2.5-flash"
     ).strip()
-    api_key = (
-        os.getenv("GEMINI_API_KEY")
-        or os.getenv("GOOGLE_API_KEY")
-        or ""
-    ).strip()
+    api_key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
 
     missing = [
         name

@@ -1,7 +1,7 @@
 """Tests for symbol normalization and provider delegation."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -40,7 +40,7 @@ def make_overview(symbol: str) -> CompanyOverview:
         dividend_yield=None,
         beta=None,
         provider="Fake",
-        retrieved_at=datetime(2026, 8, 3, tzinfo=timezone.utc),
+        retrieved_at=datetime(2026, 8, 3, tzinfo=UTC),
     )
 
 

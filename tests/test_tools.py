@@ -1,7 +1,7 @@
 """Tests for the provider-neutral company overview tool."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from langchain_core.messages import ToolMessage
 
@@ -40,7 +40,7 @@ def make_overview(**overrides) -> CompanyOverview:
         "dividend_yield": 0.004,
         "beta": 1.2,
         "provider": "Fake Finance",
-        "retrieved_at": datetime(2026, 8, 3, tzinfo=timezone.utc),
+        "retrieved_at": datetime(2026, 8, 3, tzinfo=UTC),
     }
     values.update(overrides)
     return CompanyOverview(**values)

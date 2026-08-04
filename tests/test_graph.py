@@ -43,9 +43,7 @@ class ScriptedToolCallingModel:
             assert isinstance(messages[0], SystemMessage)
 
             if isinstance(messages[-1], ToolMessage):
-                return AIMessage(
-                    content="Apple has a 31.7% operating margin."
-                )
+                return AIMessage(content="Apple has a 31.7% operating margin.")
 
             return AIMessage(
                 content="",

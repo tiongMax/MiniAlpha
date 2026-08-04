@@ -1,6 +1,6 @@
-"""Tests for provider-neutral CLI message formatting."""
+"""Tests for provider-neutral message-content extraction."""
 
-from cli import _text_content
+from app.agent.content import text_content
 
 
 def test_extracts_text_from_gemini_content_blocks() -> None:
@@ -13,9 +13,9 @@ def test_extracts_text_from_gemini_content_blocks() -> None:
         }
     ]
 
-    assert _text_content(content) == "Apple has strong operating margins."
+    assert text_content(content) == "Apple has strong operating margins."
 
 
 def test_preserves_plain_string_content() -> None:
     """Verify that plain string message content passes through unchanged."""
-    assert _text_content("Plain tool result") == "Plain tool result"
+    assert text_content("Plain tool result") == "Plain tool result"

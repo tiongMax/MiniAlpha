@@ -3,117 +3,54 @@
 import asyncio
 import json
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
-
-from app.agent.graph import build_graph
-from app.config import create_model
+from app.api.dependencies import create_research_service
+from app.services.research_agent import ResearchAgentService
 
 
-def _text_content(content: object) -> str:
-    """Extract printable text from a LangChain message payload.
-
-    Args:
-        content: Plain text, provider content blocks, or another message
-            content representation.
-
-    Returns:
-        Concatenated textual content. Provider-only metadata such as Gemini
-        signatures is ignored.
-    """
-    if isinstance(content, str):
-        return content
-    if not isinstance(content, list):
-        return str(content)
-
-    parts: list[str] = []
-    for block in content:
-        if isinstance(block, str):
-            parts.append(block)
-        elif isinstance(block, dict) and isinstance(block.get("text"), str):
-            parts.append(block["text"])
-    return "".join(parts)
-
-
-def _print_message(node: str, message: BaseMessage) -> str | None:
-    """Print one streamed graph message in a human-readable trace format.
-
-    Args:
-        node: Name of the LangGraph node that emitted the message.
-        message: LangChain message emitted in the node update.
-
-    Returns:
-        Final model-answer text for a non-tool-calling ``AIMessage``;
-        otherwise ``None``.
-    """
-    if isinstance(message, HumanMessage):
-        print(f"[{node}] user: {_text_content(message.content)}")
-        return None
-
-    if isinstance(message, ToolMessage):
-        print(f"[{node}] tool result ({message.name or 'unknown'}):")
-        print(_text_content(message.content))
-        if isinstance(message.artifact, dict):
-            artifact_type = message.artifact.get("artifact_type", "unknown")
-            status = message.artifact.get("status", "unknown")
-            print(f"[{node}] artifact: {artifact_type} ({status})")
-        return None
-
-    if isinstance(message, AIMessage) and message.tool_calls:
-        print(f"[{node}] model requested {len(message.tool_calls)} tool call(s):")
-        for call in message.tool_calls:
-            args = json.dumps(call.get("args", {}), ensure_ascii=False)
-            print(f"  - {call.get('name')}({args})")
-        return None
-
-    if isinstance(message, AIMessage):
-        content = _text_content(message.content)
-        print(f"[{node}] final answer:")
-        print(content)
-        return content
-
-    print(f"[{node}] {message.type}: {_text_content(message.content)}")
-    return None
-
-
-async def run_once(user_input: str) -> str | None:
-    """Run one user request through a newly composed research graph.
+async def run_once(
+    user_input: str,
+    service: ResearchAgentService | None = None,
+) -> str:
+    """Run one user request through the shared research service.
 
     Args:
         user_input: Natural-language question entered in the CLI.
+        service: Optional application-scoped service. A production service is
+            composed when this function is called independently.
 
     Returns:
-        Final model answer when the graph emits one, otherwise ``None``.
+        Final model answer.
 
     Raises:
         RuntimeError: If required Gemini configuration is missing.
         Exception: Provider, model, or graph failures not converted into tool
             error results.
     """
-    graph = build_graph(create_model())
-    final_answer = None
+    active_service = service or create_research_service()
+    result = await active_service.research(user_input)
 
-    async for update in graph.astream(
-        {"messages": [HumanMessage(content=user_input)]},
-        stream_mode="updates",
-        config={"recursion_limit": 12},
-    ):
-        for node, delta in update.items():
-            if not isinstance(delta, dict):
-                print(f"[{node}] {delta}")
-                continue
+    for call in result.tool_calls:
+        args = json.dumps(call.arguments, ensure_ascii=False)
+        print("[model] requested tool call:")
+        print(f"  - {call.name}({args})")
 
-            messages: list[BaseMessage] = delta.get("messages", [])
-            for message in messages:
-                answer = _print_message(node, message)
-                if answer is not None:
-                    final_answer = answer
+    for tool_result in result.tool_results:
+        print(f"[tools] tool result ({tool_result.name}):")
+        print(tool_result.content)
+        if tool_result.artifact is not None:
+            artifact_type = tool_result.artifact.get("artifact_type", "unknown")
+            status = tool_result.artifact.get("status", "unknown")
+            print(f"[tools] artifact: {artifact_type} ({status})")
 
-    return final_answer
+    print("[model] final answer:")
+    print(result.answer)
+    return result.answer
 
 
 async def main() -> None:
     """Run the interactive MiniAlpha command-line session until exit."""
-    print("MiniAlpha Phase 2")
+    service = create_research_service()
+    print("MiniAlpha Phase 3")
     print("Company data is retrieved from Yahoo Finance. Type 'quit' to exit.\n")
 
     while True:
@@ -124,7 +61,7 @@ async def main() -> None:
             continue
 
         try:
-            await run_once(user_input)
+            await run_once(user_input, service)
         except Exception as error:
             print(f"[error] {error}")
         print()

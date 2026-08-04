@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol, SupportsFloat, cast
 
 import yfinance as yf
@@ -179,9 +179,7 @@ class YahooFinanceProvider:
         market_cap = _number(
             _first(_value(fast_info, "market_cap"), info.get("marketCap"))
         )
-        company_name = _text(
-            _first(info.get("longName"), info.get("shortName"))
-        )
+        company_name = _text(_first(info.get("longName"), info.get("shortName")))
 
         if company_name is None and price is None and market_cap is None:
             raise SymbolNotFoundError(
@@ -191,12 +189,8 @@ class YahooFinanceProvider:
         return CompanyOverview(
             symbol=str(info.get("symbol") or symbol).upper(),
             company_name=company_name,
-            exchange=_text(
-                _first(info.get("fullExchangeName"), info.get("exchange"))
-            ),
-            currency=_text(
-                _first(info.get("currency"), _value(fast_info, "currency"))
-            ),
+            exchange=_text(_first(info.get("fullExchangeName"), info.get("exchange"))),
+            currency=_text(_first(info.get("currency"), _value(fast_info, "currency"))),
             sector=_text(info.get("sector")),
             industry=_text(info.get("industry")),
             price=price,
@@ -218,5 +212,5 @@ class YahooFinanceProvider:
             ),
             beta=_number(info.get("beta")),
             provider="Yahoo Finance",
-            retrieved_at=datetime.now(timezone.utc),
+            retrieved_at=datetime.now(UTC),
         )

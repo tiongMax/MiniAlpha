@@ -6,7 +6,6 @@ from app.domain.company import CompanyOverview
 from app.domain.errors import InvalidSymbolError
 from app.providers.base import FinancialDataProvider
 
-
 _SYMBOL_PATTERN = re.compile(r"^[A-Z0-9^][A-Z0-9.^=-]{0,19}$")
 
 
