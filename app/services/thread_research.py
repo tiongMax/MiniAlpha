@@ -4,11 +4,18 @@ from dataclasses import dataclass
 from typing import Protocol, cast
 from uuid import UUID
 
-from app.persistence.models import ConversationRun, ConversationTurn, StoredArtifact
+from app.persistence.models import (
+    ConversationRun,
+    ConversationThread,
+    ConversationTurn,
+    StoredArtifact,
+    ThreadPage,
+)
 from app.persistence.repository import (
     CheckpointConflictError,
     ConversationRepository,
     RunNotFoundError,
+    ThreadNotFoundError,
 )
 from app.services.research_agent import (
     ExecutedToolCall,
@@ -146,6 +153,21 @@ class ThreadResearchService:
             raise
 
         return self._completed_result(turn, replayed=False)
+
+    async def get_thread(self, thread_id: UUID) -> ConversationThread:
+        """Return one durable thread or raise a controlled not-found error."""
+        thread = await self._repository.get_thread(thread_id)
+        if thread is None:
+            raise ThreadNotFoundError("The research thread was not found.")
+        return thread
+
+    async def list_threads(self, *, limit: int, offset: int) -> ThreadPage:
+        """Return a bounded page of durable threads."""
+        return await self._repository.list_threads(limit=limit, offset=offset)
+
+    async def list_turns(self, thread_id: UUID) -> tuple[ConversationTurn, ...]:
+        """Return the durable transcript for one thread."""
+        return await self._repository.list_turns(thread_id)
 
     async def _replay(self, run: ConversationRun) -> ThreadResearchResult:
         """Return or reject an already-admitted request without re-execution."""
