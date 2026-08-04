@@ -78,7 +78,16 @@ class HealthResponse(BaseModel):
 
     status: Literal["ok"]
     service: Literal["mini-alpha"]
-    phase: Literal[3]
+    phase: Literal[5]
+
+
+class ReadinessResponse(BaseModel):
+    """Application readiness including persistent thread composition."""
+
+    status: Literal["ready"]
+    service: Literal["mini-alpha"]
+    phase: Literal[5]
+    persistence: Literal["ready"]
 
 
 class ErrorDetail(BaseModel):

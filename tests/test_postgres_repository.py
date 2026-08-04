@@ -6,6 +6,8 @@ from typing import cast
 from uuid import uuid4
 
 import pytest
+from psycopg import AsyncConnection
+from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from app.persistence.postgres import PostgresConversationRepository
@@ -23,14 +25,18 @@ def test_postgres_repository_completes_and_replays_a_run() -> None:
     assert database_url is not None
 
     async def exercise() -> None:
-        pool = AsyncConnectionPool(
-            conninfo=database_url,
-            min_size=1,
-            max_size=2,
-            open=False,
+        pool = cast(
+            AsyncConnectionPool[AsyncConnection[DictRow]],
+            AsyncConnectionPool(
+                conninfo=database_url,
+                min_size=1,
+                max_size=2,
+                open=False,
+                kwargs={"row_factory": dict_row},
+            ),
         )
         await pool.open()
-        repository = PostgresConversationRepository(cast(AsyncConnectionPool, pool))
+        repository = PostgresConversationRepository(pool)
         thread_id = None
         try:
             request_key = uuid4()

@@ -13,15 +13,19 @@ from starlette.responses import Response
 
 from app.api.dependencies import (
     ResearchServiceUnavailableError,
+    ThreadServiceUnavailableError,
     create_research_service,
+    create_thread_research_service,
 )
 from app.api.routes.health import router as health_router
+from app.api.routes.readiness import router as readiness_router
 from app.api.routes.research import router as research_router
 from app.api.schemas import ErrorDetail, ErrorResponse
 from app.services.research_agent import (
     ResearchAgentService,
     ResearchExecutionError,
 )
+from app.services.thread_research import ThreadResearchService
 
 logger = logging.getLogger(__name__)
 
@@ -42,15 +46,20 @@ def _error_response(
 
 def create_app(
     research_service: ResearchAgentService | None = None,
+    thread_research_service: ThreadResearchService | None = None,
 ) -> FastAPI:
     """Create the API with an injectable or production research service."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         """Compose production dependencies once while preserving liveness."""
+        owned_runtime = None
         if research_service is not None:
             app.state.research_service = research_service
             app.state.research_startup_failed = False
+            app.state.thread_research_service = thread_research_service
+            app.state.persistence_runtime = None
+            app.state.persistence_startup_failed = thread_research_service is None
         else:
             try:
                 app.state.research_service = create_research_service()
@@ -58,7 +67,23 @@ def create_app(
             except RuntimeError:
                 app.state.research_service = None
                 app.state.research_startup_failed = True
-        yield
+            try:
+                (
+                    app.state.thread_research_service,
+                    owned_runtime,
+                ) = await create_thread_research_service()
+                app.state.persistence_runtime = owned_runtime
+                app.state.persistence_startup_failed = False
+            except Exception:
+                logger.exception("Persistent research composition failed")
+                app.state.thread_research_service = None
+                app.state.persistence_runtime = None
+                app.state.persistence_startup_failed = True
+        try:
+            yield
+        finally:
+            if owned_runtime is not None:
+                await owned_runtime.close()
 
     api = FastAPI(
         title="MiniAlpha API",
@@ -70,6 +95,7 @@ def create_app(
         lifespan=lifespan,
     )
     api.include_router(health_router)
+    api.include_router(readiness_router)
     api.include_router(research_router)
 
     @api.middleware("http")
@@ -124,6 +150,18 @@ def create_app(
             status_code=503,
             code="research_unavailable",
             message=message,
+        )
+
+    @api.exception_handler(ThreadServiceUnavailableError)
+    async def handle_unavailable_persistence(
+        _request: Request,
+        _error: Exception,
+    ) -> JSONResponse:
+        """Report unavailable persistent conversation composition."""
+        return _error_response(
+            status_code=503,
+            code="persistence_unavailable",
+            message="Persistent research threads are unavailable.",
         )
 
     @api.exception_handler(Exception)

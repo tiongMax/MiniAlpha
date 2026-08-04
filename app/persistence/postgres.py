@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Literal, cast
 from uuid import UUID
 
-from psycopg import AsyncCursor
+from psycopg import AsyncConnection, AsyncCursor
 from psycopg.errors import UniqueViolation
 from psycopg.rows import DictRow, dict_row
 from psycopg.types.json import Jsonb
@@ -51,7 +51,10 @@ _RUN_COLUMNS = """
 class PostgresConversationRepository:
     """Persist thread and run lifecycle state with explicit PostgreSQL SQL."""
 
-    def __init__(self, pool: AsyncConnectionPool) -> None:
+    def __init__(
+        self,
+        pool: AsyncConnectionPool[AsyncConnection[DictRow]],
+    ) -> None:
         self._pool = pool
 
     async def admit_run(
