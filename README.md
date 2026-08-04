@@ -72,6 +72,27 @@ Check liveness without calling Gemini or Yahoo:
 Invoke-RestMethod http://127.0.0.1:8000/health
 ```
 
+Start the PostgreSQL development database used by persistent conversation
+records and LangGraph checkpoints:
+
+```powershell
+docker compose up -d postgres
+uv run python -m scripts.setup_database
+```
+
+The Compose service uses host port `5433` so it can run alongside a local
+PostgreSQL installation on the default port. Copy the matching `DATABASE_URL`
+from `.env.example` into `.env`.
+
+Stop the container without deleting its data:
+
+```powershell
+docker compose down
+```
+
+Use `docker compose down -v` only when intentionally deleting the development
+database volume.
+
 Submit a research request:
 
 ```powershell
