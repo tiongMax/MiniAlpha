@@ -10,8 +10,8 @@ LangAlpha separates its chat path into four responsibilities:
 
 1. Components render UI and initiate user actions.
 2. An API module owns HTTP requests.
-3. Streaming POST requests use `fetch()` and `ReadableStream`, because the
-   browser's native `EventSource` only supports GET.
+3. Run admission uses `POST`; event attachment uses streaming `GET` with
+   `fetch()` and `ReadableStream`.
 4. Stream events are reduced into UI state instead of exposing raw transport
    details throughout the component tree.
 5. Committed server state uses React Query with hierarchical query keys and
@@ -25,8 +25,9 @@ App.tsx
        -> React Query
             -> cached thread list and committed transcripts
        -> api/client.ts
-            -> POST application/json
-            <- text/event-stream
+            -> POST run admission
+            -> GET text/event-stream
+            -> POST cancellation
        -> chat/events.ts
             -> ChatTurn state
   -> message, tool, artifact, and status components
@@ -45,14 +46,13 @@ key-factory pattern.
 ## Deliberately omitted
 
 LangAlpha also includes authentication, workspaces, dashboards, market
-WebSockets, file panels, subagents, human approval, reconnect readers, and
-cancellation. MiniAlpha does not need those to test its current agent.
+WebSockets, file panels, subagents, human approval, and durable reconnect
+readers. MiniAlpha does not need those to test its current agent.
 
-The current backend is still Phase 6 attached execution. The frontend therefore
-does not expose a Stop action: aborting only the browser request is not durable
-cancellation and could strand an `in_progress` run. A real Stop button should be
-added with Phase 7's cancellation endpoint. Reconnection state should be added
-with Phase 8's durable event IDs and replay endpoint.
+The Phase 7 backend owns execution after admission, so disconnecting the browser
+does not cancel the run. The Stop action calls the server cancellation endpoint
+and waits for a durable `cancelled` terminal event. Reconnection state across API
+process restarts will be added with Phase 8's Redis event IDs and replay path.
 
 ## Run locally
 
