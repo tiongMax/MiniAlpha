@@ -7,11 +7,13 @@ from app.domain.errors import (
     FinancialProviderTimeout,
     InvalidFundamentalQueryError,
     InvalidPriceQueryError,
+    InvalidQuantitativeQueryError,
     InvalidSymbolError,
     SymbolNotFoundError,
 )
 from app.domain.fundamentals import FundamentalDataset
 from app.domain.prices import PriceHistory, PricePoint
+from app.domain.quantitative import QuantitativeDataset
 
 __all__ = [
     "CompanyOverview",
@@ -21,8 +23,10 @@ __all__ = [
     "FundamentalDataset",
     "InvalidFundamentalQueryError",
     "InvalidPriceQueryError",
+    "InvalidQuantitativeQueryError",
     "InvalidSymbolError",
     "PriceHistory",
     "PricePoint",
+    "QuantitativeDataset",
     "SymbolNotFoundError",
 ]

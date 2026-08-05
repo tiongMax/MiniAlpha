@@ -384,10 +384,15 @@ class YahooFinanceProvider:
             if close is None:
                 continue
             timestamp = raw_timestamp.to_pydatetime()
-            if timestamp.tzinfo is None:
-                timestamp = timestamp.replace(tzinfo=UTC)
-            else:
-                timestamp = timestamp.astimezone(UTC)
+            # Yahoo daily/weekly/monthly indices are session labels rather than
+            # executable instants. Preserve that provider date across exchange
+            # time zones so cross-market histories can be aligned correctly.
+            timestamp = datetime(
+                timestamp.year,
+                timestamp.month,
+                timestamp.day,
+                tzinfo=UTC,
+            )
             raw_volume = _number(_value(row, "Volume"))
             points.append(
                 PricePoint(
@@ -397,6 +402,7 @@ class YahooFinanceProvider:
                     low=_number(_value(row, "Low")),
                     close=close,
                     volume=int(raw_volume) if raw_volume is not None else None,
+                    adjusted_close=_number(_value(row, "Adj Close")),
                 )
             )
         if not points:

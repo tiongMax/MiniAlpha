@@ -9,8 +9,10 @@ from app.domain.company import CompanyOverview
 from app.domain.errors import FinancialDataError
 from app.domain.fundamentals import FundamentalDataset
 from app.domain.prices import PriceHistory
+from app.domain.quantitative import QuantitativeDataset
 from app.providers.yahoo import YahooFinanceProvider
 from app.services.company_research import CompanyResearchService
+from app.services.quantitative_research import QuantitativeResearchService
 
 
 def _format_money(value: float | None, currency: str | None) -> str:
@@ -173,6 +175,41 @@ def format_fundamental_dataset(dataset: FundamentalDataset) -> str:
 def _dataset_artifact(dataset: FundamentalDataset) -> dict[str, object]:
     return {
         "artifact_type": dataset.dataset,
+        "schema_version": 1,
+        "status": "ok",
+        "data": dataset.to_dict(),
+    }
+
+
+def format_quantitative_dataset(dataset: QuantitativeDataset) -> str:
+    """Render calculation summaries without placing full series in model context."""
+    serialized = dataset.to_dict()
+    summary = serialized["summary"]
+    if not isinstance(summary, dict):
+        summary = {}
+    lines = [
+        f"{', '.join(dataset.symbols)} — {dataset.analysis.replace('_', ' ').title()}",
+        f"Window: {dataset.period}, {dataset.interval}",
+    ]
+    for name, value in summary.items():
+        lines.append(
+            f"{name.replace('_', ' ').title()}: "
+            f"{json.dumps(value, ensure_ascii=False, separators=(',', ':'))}"
+        )
+    lines.extend(
+        (
+            f"Price source: {dataset.provider}",
+            f"Source retrieved: {dataset.source_retrieved_at.isoformat()}",
+            f"Calculated: {dataset.calculated_at.isoformat()}",
+            "Note: deterministic historical calculation; not a forecast.",
+        )
+    )
+    return "\n".join(lines)
+
+
+def _quantitative_artifact(dataset: QuantitativeDataset) -> dict[str, object]:
+    return {
+        "artifact_type": dataset.analysis,
         "schema_version": 1,
         "status": "ok",
         "data": dataset.to_dict(),
@@ -412,14 +449,143 @@ def create_company_comparison_tool(service: CompanyResearchService) -> BaseTool:
     return compare_companies
 
 
+def create_return_statistics_tool(service: QuantitativeResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def calculate_return_statistics(
+        symbol: str,
+        period: str = "1y",
+        interval: str = "1d",
+    ) -> tuple[str, dict[str, object]]:
+        """Calculate total, annualized, average, best, and worst historical returns."""
+        try:
+            data = await service.return_statistics(
+                symbol, period=period, interval=interval
+            )
+        except FinancialDataError as error:
+            return _error_artifact("return_statistics", error)
+        return format_quantitative_dataset(data), _quantitative_artifact(data)
+
+    return calculate_return_statistics
+
+
+def create_volatility_tool(service: QuantitativeResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def calculate_volatility(
+        symbol: str,
+        period: str = "1y",
+        interval: str = "1d",
+    ) -> tuple[str, dict[str, object]]:
+        """Calculate historical and annualized volatility and downside deviation."""
+        try:
+            data = await service.volatility(symbol, period=period, interval=interval)
+        except FinancialDataError as error:
+            return _error_artifact("volatility_analysis", error)
+        return format_quantitative_dataset(data), _quantitative_artifact(data)
+
+    return calculate_volatility
+
+
+def create_drawdown_tool(service: QuantitativeResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def analyze_drawdowns(
+        symbol: str,
+        period: str = "2y",
+        interval: str = "1d",
+    ) -> tuple[str, dict[str, object]]:
+        """Calculate maximum, current, and time-indexed historical drawdowns."""
+        try:
+            data = await service.drawdowns(symbol, period=period, interval=interval)
+        except FinancialDataError as error:
+            return _error_artifact("drawdown_analysis", error)
+        return format_quantitative_dataset(data), _quantitative_artifact(data)
+
+    return analyze_drawdowns
+
+
+def create_correlation_tool(service: QuantitativeResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def calculate_correlations(
+        symbols: list[str],
+        period: str = "1y",
+        interval: str = "1d",
+    ) -> tuple[str, dict[str, object]]:
+        """Calculate pairwise return correlations for 2 to 5 public tickers."""
+        try:
+            data = await service.correlations(symbols, period=period, interval=interval)
+        except FinancialDataError as error:
+            return _error_artifact("correlation_analysis", error)
+        return format_quantitative_dataset(data), _quantitative_artifact(data)
+
+    return calculate_correlations
+
+
+def create_technical_indicators_tool(
+    service: QuantitativeResearchService,
+) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def calculate_technical_indicators(
+        symbol: str,
+        period: str = "1y",
+        interval: str = "1d",
+        short_window: int = 20,
+        long_window: int = 50,
+        rsi_period: int = 14,
+    ) -> tuple[str, dict[str, object]]:
+        """Calculate SMA, EMA, and RSI series from historical closing prices."""
+        try:
+            data = await service.technical_indicators(
+                symbol,
+                period=period,
+                interval=interval,
+                short_window=short_window,
+                long_window=long_window,
+                rsi_period=rsi_period,
+            )
+        except FinancialDataError as error:
+            return _error_artifact("technical_indicators", error)
+        return format_quantitative_dataset(data), _quantitative_artifact(data)
+
+    return calculate_technical_indicators
+
+
+def create_moving_average_backtest_tool(
+    service: QuantitativeResearchService,
+) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def backtest_moving_average(
+        symbol: str,
+        period: str = "5y",
+        interval: str = "1d",
+        short_window: int = 20,
+        long_window: int = 50,
+        transaction_cost_bps: float = 10.0,
+    ) -> tuple[str, dict[str, object]]:
+        """Backtest a lagged long/cash moving-average crossover strategy."""
+        try:
+            data = await service.backtest_moving_average(
+                symbol,
+                period=period,
+                interval=interval,
+                short_window=short_window,
+                long_window=long_window,
+                transaction_cost_bps=transaction_cost_bps,
+            )
+        except FinancialDataError as error:
+            return _error_artifact("moving_average_backtest", error)
+        return format_quantitative_dataset(data), _quantitative_artifact(data)
+
+    return backtest_moving_average
+
+
 def create_default_tools() -> Sequence[BaseTool]:
     """Compose the production tools and their dependencies.
 
     Returns:
-        Complete Yahoo-backed overview, price, and fundamental toolset.
+        Complete Yahoo-backed fundamental and deterministic quantitative toolset.
     """
     provider = YahooFinanceProvider()
     service = CompanyResearchService(provider)
+    quantitative = QuantitativeResearchService(service)
     return [
         create_company_overview_tool(service),
         create_price_history_tool(service),
@@ -431,4 +597,10 @@ def create_default_tools() -> Sequence[BaseTool]:
         create_insider_activity_tool(service),
         create_company_news_tool(service),
         create_company_comparison_tool(service),
+        create_return_statistics_tool(quantitative),
+        create_volatility_tool(quantitative),
+        create_drawdown_tool(quantitative),
+        create_correlation_tool(quantitative),
+        create_technical_indicators_tool(quantitative),
+        create_moving_average_backtest_tool(quantitative),
     ]

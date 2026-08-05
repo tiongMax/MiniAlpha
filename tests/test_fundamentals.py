@@ -231,7 +231,7 @@ def test_fundamental_tools_include_source_metadata() -> None:
     assert news.artifact["artifact_type"] == "company_news"
 
 
-def test_default_toolset_exposes_complete_phase_eleven_surface() -> None:
+def test_default_toolset_exposes_complete_financial_research_surface() -> None:
     assert {tool.name for tool in create_default_tools()} == {
         "get_company_overview",
         "get_price_history",
@@ -243,6 +243,12 @@ def test_default_toolset_exposes_complete_phase_eleven_surface() -> None:
         "get_insider_activity",
         "get_company_news",
         "compare_companies",
+        "calculate_return_statistics",
+        "calculate_volatility",
+        "analyze_drawdowns",
+        "calculate_correlations",
+        "calculate_technical_indicators",
+        "backtest_moving_average",
     }
 
 
