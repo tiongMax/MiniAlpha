@@ -7,6 +7,7 @@ import pytest
 
 from app.domain.company import CompanyOverview
 from app.domain.errors import InvalidSymbolError
+from app.domain.prices import PriceHistory
 from app.services.company_research import CompanyResearchService, normalize_symbol
 
 
@@ -68,6 +69,24 @@ class RecordingProvider:
         self.requested_symbol = symbol
         return make_overview(symbol)
 
+    async def get_price_history(
+        self,
+        symbol: str,
+        *,
+        period: str,
+        interval: str,
+    ) -> PriceHistory:
+        self.requested_symbol = symbol
+        return PriceHistory(
+            symbol=symbol,
+            currency="USD",
+            period=period,
+            interval=interval,
+            points=(),
+            provider="Fake",
+            retrieved_at=datetime(2026, 8, 3, tzinfo=UTC),
+        )
+
 
 def test_service_normalizes_before_calling_provider() -> None:
     """Verify that provider delegation receives a trimmed uppercase symbol."""
@@ -78,6 +97,19 @@ def test_service_normalizes_before_calling_provider() -> None:
 
     assert provider.requested_symbol == "BRK-B"
     assert result.symbol == "BRK-B"
+
+
+def test_price_service_normalizes_query_options() -> None:
+    provider = RecordingProvider()
+    service = CompanyResearchService(provider)
+
+    result = asyncio.run(
+        service.get_price_history(" aapl ", period=" 1Y ", interval=" 1WK ")
+    )
+
+    assert provider.requested_symbol == "AAPL"
+    assert result.period == "1y"
+    assert result.interval == "1wk"
 
 
 @pytest.mark.parametrize("symbol", ["", "AAPL!", "two words", "A" * 21])

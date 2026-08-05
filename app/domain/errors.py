@@ -9,6 +9,10 @@ class InvalidSymbolError(FinancialDataError):
     """Raised when input cannot be normalized into an accepted ticker."""
 
 
+class InvalidPriceQueryError(FinancialDataError):
+    """Raised when a requested price period or interval is unsupported."""
+
+
 class SymbolNotFoundError(FinancialDataError):
     """Raised when a provider has no company data for a valid ticker."""
 

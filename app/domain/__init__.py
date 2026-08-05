@@ -5,15 +5,20 @@ from app.domain.errors import (
     FinancialDataError,
     FinancialProviderError,
     FinancialProviderTimeout,
+    InvalidPriceQueryError,
     InvalidSymbolError,
     SymbolNotFoundError,
 )
+from app.domain.prices import PriceHistory, PricePoint
 
 __all__ = [
     "CompanyOverview",
     "FinancialDataError",
     "FinancialProviderError",
     "FinancialProviderTimeout",
+    "InvalidPriceQueryError",
     "InvalidSymbolError",
+    "PriceHistory",
+    "PricePoint",
     "SymbolNotFoundError",
 ]

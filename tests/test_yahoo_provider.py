@@ -1,6 +1,7 @@
 """Mapping tests for the Yahoo Finance adapter."""
 
 import asyncio
+from datetime import UTC, datetime
 
 import pytest
 
@@ -17,6 +18,7 @@ class FakeTicker:
         *,
         info: dict[str, object],
         fast_info: dict[str, object],
+        history: object | None = None,
     ) -> None:
         """Initialize provider response data.
 
@@ -27,10 +29,38 @@ class FakeTicker:
         """
         self._info = info
         self.fast_info = fast_info
+        self._history = history
 
     def get_info(self) -> dict[str, object]:
         """Return the configured detailed response dictionary."""
         return self._info
+
+    def history(self, **_kwargs):
+        return self._history
+
+
+class FakeTimestamp:
+    def __init__(self, value: datetime) -> None:
+        self.value = value
+
+    def to_pydatetime(self) -> datetime:
+        return self.value
+
+
+class FakeHistory:
+    def iterrows(self):
+        return iter(
+            (
+                (
+                    FakeTimestamp(datetime(2026, 7, 1, tzinfo=UTC)),
+                    {"Open": 99, "High": 102, "Low": 98, "Close": 101, "Volume": 10},
+                ),
+                (
+                    FakeTimestamp(datetime(2026, 7, 2, tzinfo=UTC)),
+                    {"Open": 101, "High": 105, "Low": 100, "Close": 104, "Volume": 12},
+                ),
+            )
+        )
 
 
 def test_maps_provider_fields_and_preserves_zero(monkeypatch) -> None:
@@ -116,3 +146,23 @@ def test_converts_unexpected_upstream_failure(monkeypatch) -> None:
 
     assert "Yahoo Finance could not retrieve data for AAPL." in str(error.value)
     assert "upstream detail" not in str(error.value)
+
+
+def test_maps_price_history_to_chart_ready_points(monkeypatch) -> None:
+    """Verify Yahoo history rows become stable artifact values."""
+    monkeypatch.setattr(
+        "app.providers.yahoo.yf.Ticker",
+        lambda symbol: FakeTicker(
+            symbol,
+            info={},
+            fast_info={"currency": "USD"},
+            history=FakeHistory(),
+        ),
+    )
+
+    result = YahooFinanceProvider()._fetch_price_history("TEST", "1mo", "1d")
+
+    assert result.symbol == "TEST"
+    assert result.currency == "USD"
+    assert [point.close for point in result.points] == [101.0, 104.0]
+    assert result.points[0].timestamp == datetime(2026, 7, 1, tzinfo=UTC)

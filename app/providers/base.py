@@ -3,6 +3,7 @@
 from typing import Protocol
 
 from app.domain.company import CompanyOverview
+from app.domain.prices import PriceHistory
 
 
 class FinancialDataProvider(Protocol):
@@ -22,4 +23,14 @@ class FinancialDataProvider(Protocol):
             FinancialProviderError: If the upstream provider cannot complete
                 the request.
         """
+        ...
+
+    async def get_price_history(
+        self,
+        symbol: str,
+        *,
+        period: str,
+        interval: str,
+    ) -> PriceHistory:
+        """Retrieve a normalized, bounded historical price series."""
         ...

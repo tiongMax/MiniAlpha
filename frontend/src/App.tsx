@@ -14,8 +14,9 @@ import {
 } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ArtifactStack } from './artifacts/ArtifactRenderer'
 import { useResearchChat } from './chat/useResearchChat'
-import type { Artifact, ChatTurn, ToolCall } from './types'
+import type { ChatTurn, ToolCall } from './types'
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(
@@ -68,8 +69,8 @@ function ThreadSidebar({
         {!visible.length && <p className="empty-list">No saved threads yet.</p>}
       </nav>
       <div className="phase-note">
-        <span>Phase 8 execution</span>
-        Detached runs · Redis reconnect
+        <span>Phase 10 artifacts</span>
+        Company cards · price charts
       </div>
     </aside>
   )
@@ -91,15 +92,6 @@ function ToolCard({ tool }: { tool: ToolCall }) {
   )
 }
 
-function ArtifactCard({ artifact }: { artifact: Artifact }) {
-  return (
-    <details className="artifact-card">
-      <summary><Sparkles size={14} /> {artifact.artifact_type.replaceAll('_', ' ')}</summary>
-      <pre>{JSON.stringify(artifact.data ?? { error: artifact.error }, null, 2)}</pre>
-    </details>
-  )
-}
-
 function Turn({ turn }: { turn: ChatTurn }) {
   return (
     <article className="turn">
@@ -112,7 +104,7 @@ function Turn({ turn }: { turn: ChatTurn }) {
         <div className="assistant-content">
           <div className="message-label">MiniAlpha</div>
           {turn.tools.length > 0 && <div className="tool-stack">{turn.tools.map((tool, index) => <ToolCard key={tool.tool_call_id ?? index} tool={tool} />)}</div>}
-          {turn.artifacts.length > 0 && <div className="artifact-stack">{turn.artifacts.map((artifact, index) => <ArtifactCard key={`${artifact.artifact_type}-${index}`} artifact={artifact} />)}</div>}
+          {turn.artifacts.length > 0 && <ArtifactStack artifacts={turn.artifacts} />}
           {turn.assistant ? (
             <div className="markdown"><Markdown remarkPlugins={[remarkGfm]}>{turn.assistant}</Markdown></div>
           ) : turn.status === 'in_progress' ? (

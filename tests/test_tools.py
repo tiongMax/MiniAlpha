@@ -5,9 +5,14 @@ from datetime import UTC, datetime
 
 from langchain_core.messages import ToolMessage
 
-from app.agent.tools import create_company_overview_tool, format_company_overview
+from app.agent.tools import (
+    create_company_overview_tool,
+    create_price_history_tool,
+    format_company_overview,
+)
 from app.domain.company import CompanyOverview
 from app.domain.errors import SymbolNotFoundError
+from app.domain.prices import PriceHistory, PricePoint
 
 
 def make_overview(**overrides) -> CompanyOverview:
@@ -76,6 +81,22 @@ class MissingService:
         raise SymbolNotFoundError(f"No company data is available for {symbol}.")
 
 
+class SuccessfulPriceService:
+    async def get_price_history(self, symbol: str, *, period: str, interval: str):
+        return PriceHistory(
+            symbol=symbol,
+            currency="USD",
+            period=period,
+            interval=interval,
+            points=(
+                PricePoint(datetime(2026, 7, 1, tzinfo=UTC), 99, 102, 98, 100, 10),
+                PricePoint(datetime(2026, 8, 1, tzinfo=UTC), 109, 112, 108, 110, 12),
+            ),
+            provider="Fake Finance",
+            retrieved_at=datetime(2026, 8, 3, tzinfo=UTC),
+        )
+
+
 def invoke_as_tool_call(tool, symbol: str) -> ToolMessage:
     """Invoke a tool with LangChain's full tool-call envelope.
 
@@ -139,3 +160,22 @@ def test_formatter_distinguishes_missing_values_from_zero() -> None:
     assert "Price: USD 0.00" in result
     assert "Trailing / forward P/E: N/A / 28.00" in result
     assert "Revenue growth: 0.0%" in result
+
+
+def test_price_tool_returns_compact_text_and_chart_artifact() -> None:
+    price_tool = create_price_history_tool(SuccessfulPriceService())
+    result = asyncio.run(
+        price_tool.ainvoke(
+            {
+                "type": "tool_call",
+                "id": "call-prices",
+                "name": "get_price_history",
+                "args": {"symbol": "AAPL", "period": "1mo", "interval": "1d"},
+            }
+        )
+    )
+
+    assert isinstance(result, ToolMessage)
+    assert "Period change: 10.0%" in result.content
+    assert result.artifact["artifact_type"] == "price_history"
+    assert result.artifact["data"]["points"][1]["close"] == 110

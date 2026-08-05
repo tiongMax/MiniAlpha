@@ -6,6 +6,7 @@ from langchain_core.tools import BaseTool, tool
 
 from app.domain.company import CompanyOverview
 from app.domain.errors import FinancialDataError
+from app.domain.prices import PriceHistory
 from app.providers.yahoo import YahooFinanceProvider
 from app.services.company_research import CompanyResearchService
 
@@ -112,6 +113,29 @@ def format_company_overview(overview: CompanyOverview) -> str:
     )
 
 
+def format_price_history(history: PriceHistory) -> str:
+    """Render a price series compactly without placing every point in context."""
+    first = history.points[0]
+    last = history.points[-1]
+    change = (last.close / first.close - 1) if first.close else None
+    closes = [point.close for point in history.points]
+    return "\n".join(
+        (
+            f"{history.symbol} price history ({history.period}, {history.interval})",
+            f"Observations: {len(history.points)}",
+            f"Start / latest close: "
+            f"{_format_money(first.close, history.currency)} / "
+            f"{_format_money(last.close, history.currency)}",
+            f"Period change: {_format_percentage(change)}",
+            f"Low / high close: {_format_money(min(closes), history.currency)} / "
+            f"{_format_money(max(closes), history.currency)}",
+            f"Source: {history.provider}",
+            f"Retrieved: {history.retrieved_at.isoformat()}",
+            "Note: provider data may be delayed or incomplete.",
+        )
+    )
+
+
 def create_company_overview_tool(
     service: CompanyResearchService,
 ) -> BaseTool:
@@ -166,6 +190,51 @@ def create_company_overview_tool(
     return get_company_overview
 
 
+def create_price_history_tool(service: CompanyResearchService) -> BaseTool:
+    """Create the chart-producing historical price tool."""
+
+    @tool(response_format="content_and_artifact")
+    async def get_price_history(
+        symbol: str,
+        period: str = "6mo",
+        interval: str = "1d",
+    ) -> tuple[str, dict[str, object]]:
+        """Get historical OHLCV prices for a public-company ticker.
+
+        Args:
+            symbol: Public ticker such as AAPL or MSFT.
+            period: One of 1mo, 3mo, 6mo, 1y, 2y, or 5y.
+            interval: One of 1d, 1wk, or 1mo.
+        """
+        try:
+            history = await service.get_price_history(
+                symbol,
+                period=period,
+                interval=interval,
+            )
+        except FinancialDataError as error:
+            return (
+                str(error),
+                {
+                    "artifact_type": "price_history",
+                    "schema_version": 1,
+                    "status": "error",
+                    "error": str(error),
+                },
+            )
+        return (
+            format_price_history(history),
+            {
+                "artifact_type": "price_history",
+                "schema_version": 1,
+                "status": "ok",
+                "data": history.to_dict(),
+            },
+        )
+
+    return get_price_history
+
+
 def create_default_tools() -> Sequence[BaseTool]:
     """Compose the production tools and their dependencies.
 
@@ -174,4 +243,7 @@ def create_default_tools() -> Sequence[BaseTool]:
     """
     provider = YahooFinanceProvider()
     service = CompanyResearchService(provider)
-    return [create_company_overview_tool(service)]
+    return [
+        create_company_overview_tool(service),
+        create_price_history_tool(service),
+    ]
