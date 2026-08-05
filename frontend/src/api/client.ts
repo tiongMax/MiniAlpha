@@ -1,5 +1,6 @@
 import type {
   ApiError,
+  RunAcceptedResponse,
   RunEvent,
   ThreadListResponse,
   ThreadTranscriptResponse,
@@ -42,16 +43,17 @@ interface StreamOptions {
   requestKey: string
   signal: AbortSignal
   onEvent: (event: RunEvent) => void
+  onAccepted: (run: RunAcceptedResponse) => void
 }
 
 export async function streamMessage(options: StreamOptions): Promise<void> {
   const path = options.threadId
-    ? `/api/v1/threads/${options.threadId}/messages/stream`
-    : '/api/v1/threads/messages/stream'
+    ? `/api/v1/threads/${options.threadId}/runs`
+    : '/api/v1/threads/runs'
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: {
-      Accept: 'text/event-stream',
+      Accept: 'application/json',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -61,9 +63,19 @@ export async function streamMessage(options: StreamOptions): Promise<void> {
     signal: options.signal,
   })
   if (!response.ok) throw await errorFrom(response)
-  if (!response.body) throw new Error('The browser did not expose the response stream.')
+  const accepted = (await response.json()) as RunAcceptedResponse
+  options.onAccepted(accepted)
 
-  const reader = response.body.getReader()
+  const eventsResponse = await fetch(`${API_BASE}${accepted.events_url}`, {
+    headers: { Accept: 'text/event-stream' },
+    signal: options.signal,
+  })
+  if (!eventsResponse.ok) throw await errorFrom(eventsResponse)
+  if (!eventsResponse.body) {
+    throw new Error('The browser did not expose the response stream.')
+  }
+
+  const reader = eventsResponse.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
 
@@ -76,6 +88,14 @@ export async function streamMessage(options: StreamOptions): Promise<void> {
     if (done) break
   }
   if (buffer.trim()) parseFrame(buffer, options.onEvent)
+}
+
+export async function cancelRun(runId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/v1/runs/${runId}/cancel`, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) throw await errorFrom(response)
 }
 
 function parseFrame(frame: string, onEvent: (event: RunEvent) => void): void {

@@ -49,6 +49,14 @@ export function reduceRunEvent(turn: ChatTurn, event: RunEvent): ChatTurn {
         error: text(data.message) ?? 'The run failed.',
       }
     case 'run_end':
-      return { ...turn, status: data.status === 'completed' ? 'completed' : 'error' }
+      return {
+        ...turn,
+        status:
+          data.status === 'completed'
+            ? 'completed'
+            : data.status === 'cancelled'
+              ? 'cancelled'
+              : 'error',
+      }
   }
 }

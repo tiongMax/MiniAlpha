@@ -40,6 +40,6 @@ async def readiness(request: Request) -> ReadinessResponse:
     return ReadinessResponse(
         status="ready",
         service="mini-alpha",
-        phase=6,
+        phase=7,
         persistence="ready",
     )

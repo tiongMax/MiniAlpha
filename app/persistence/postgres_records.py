@@ -53,7 +53,7 @@ def thread_from_row(row: Mapping[str, object]) -> ConversationThread:
     return ConversationThread(
         thread_id=cast(UUID, row["conversation_thread_id"]),
         status=cast(
-            Literal["in_progress", "completed", "error"],
+            Literal["in_progress", "completed", "error", "cancelled"],
             row["current_status"],
         ),
         title=cast(str | None, row["title"]),
@@ -76,7 +76,7 @@ def run_from_row(row: Mapping[str, object]) -> ConversationRun:
         attempt_no=int(cast(int, row["attempt_no"])),
         request_key=cast(UUID | None, row["request_key"]),
         status=cast(
-            Literal["in_progress", "completed", "error"],
+            Literal["in_progress", "completed", "error", "cancelled"],
             row["status"],
         ),
         message=str(row["content"]),

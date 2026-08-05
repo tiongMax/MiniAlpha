@@ -190,6 +190,39 @@ class InMemoryConversationRepository:
             )
             return failed
 
+    async def cancel_run(
+        self,
+        run_id: UUID,
+        *,
+        partial_answer: str = "",
+        tool_calls: Sequence[dict[str, object]] = (),
+        artifacts: Sequence[dict[str, object]] = (),
+    ) -> ConversationRun:
+        """Finalize a cancelled run while preserving the committed checkpoint."""
+        async with self._lock:
+            run = self._require_active_run(run_id)
+            now = _now()
+            cancelled = replace(
+                run,
+                status="cancelled",
+                answer=partial_answer or None,
+                tool_calls=tuple(tool_calls),
+                error_code="cancelled",
+                error_message="The research run was cancelled.",
+                completed_at=now,
+            )
+            self._runs[run_id] = cancelled
+            self._artifacts[run_id] = tuple(
+                self._store_artifact(run_id, ordinal, artifact, now)
+                for ordinal, artifact in enumerate(artifacts)
+            )
+            self._threads[run.thread_id] = replace(
+                self._threads[run.thread_id],
+                status="cancelled",
+                updated_at=now,
+            )
+            return cancelled
+
     async def get_thread(self, thread_id: UUID) -> ConversationThread | None:
         """Return one thread from memory."""
         async with self._lock:

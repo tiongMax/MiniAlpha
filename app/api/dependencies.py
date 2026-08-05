@@ -8,6 +8,7 @@ from app.agent.graph import build_graph
 from app.config import create_model, get_database_url
 from app.persistence.runtime import PersistenceRuntime
 from app.services.research_agent import ResearchAgentService, ResearchGraph
+from app.services.run_manager import DetachedRunManager
 from app.services.thread_research import ThreadResearchService
 
 
@@ -17,6 +18,10 @@ class ResearchServiceUnavailableError(RuntimeError):
 
 class ThreadServiceUnavailableError(RuntimeError):
     """Raised when persistent thread research is unavailable."""
+
+
+class RunManagerUnavailableError(RuntimeError):
+    """Raised when detached execution is unavailable."""
 
 
 def create_research_service() -> ResearchAgentService:
@@ -59,3 +64,11 @@ def get_thread_research_service(request: Request) -> ThreadResearchService:
             "Persistent thread research is unavailable."
         )
     return service
+
+
+def get_run_manager(request: Request) -> DetachedRunManager:
+    """Return the application-scoped detached execution manager."""
+    manager = getattr(request.app.state, "run_manager", None)
+    if not isinstance(manager, DetachedRunManager):
+        raise RunManagerUnavailableError("Detached execution is unavailable.")
+    return manager

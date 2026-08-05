@@ -319,11 +319,34 @@ class ThreadResearchService:
         """Return the durable transcript for one thread."""
         return await self._repository.list_turns(thread_id)
 
+    async def cancel_run(
+        self,
+        run_id: UUID,
+        *,
+        partial_answer: str = "",
+        tool_calls: tuple[dict[str, object], ...] = (),
+        artifacts: tuple[dict[str, object], ...] = (),
+    ) -> ConversationRun:
+        """Persist an explicit cancellation for an active run."""
+        return await self._repository.cancel_run(
+            run_id,
+            partial_answer=partial_answer,
+            tool_calls=tool_calls,
+            artifacts=artifacts,
+        )
+
+    async def get_turn(self, run_id: UUID) -> ConversationTurn:
+        """Return one durable run or raise a controlled not-found error."""
+        turn = await self._repository.get_turn(run_id)
+        if turn is None:
+            raise RunNotFoundError("The research run was not found.")
+        return turn
+
     async def _replay(self, run: ConversationRun) -> ThreadResearchResult:
         """Return or reject an already-admitted request without re-execution."""
         if run.status == "in_progress":
             raise ExistingRunInProgressError(run)
-        if run.status == "error":
+        if run.status in {"error", "cancelled"}:
             raise PersistedRunFailedError(run)
         turn = await self._repository.get_turn(run.run_id)
         if turn is None:

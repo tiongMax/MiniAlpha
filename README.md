@@ -4,15 +4,16 @@ MiniAlpha is a learning project that rebuilds the core research loop behind
 LangAlpha with an explicit LangGraph instead of
 `langchain.agents.create_agent`.
 
-## Phase 6 + frontend testing slice
+## Phase 7 + frontend testing slice
 
-Phase 6 supports independent research requests, durable conversations, and a
-stable live event stream:
+Phase 7 supports independent research requests, durable conversations, a
+stable live event stream, detached execution, and explicit cancellation:
 
 ```text
 HTTP client
   -> FastAPI
-  -> ThreadResearchService
+  -> DetachedRunManager (one background worker)
+       -> ThreadResearchService
        -> conversation repository -> PostgreSQL application tables
        -> ResearchAgentService -> explicit LangGraph
                                   -> PostgreSQL checkpoints
@@ -28,17 +29,17 @@ LangGraph events.
 This follows LangAlpha's important persistence boundary at learning scale:
 the application database owns request identity, run lifecycle, transcripts,
 and the published checkpoint pointer; LangGraph owns serialized graph state.
-MiniAlpha does not yet copy LangAlpha's Redis replay, background execution,
-multi-worker coordination, authentication, workspaces, sandboxing, MCP, PTC,
-or subagent infrastructure.
+MiniAlpha does not yet copy LangAlpha's Redis replay, multi-worker
+coordination, authentication, workspaces, sandboxing, MCP, PTC, or subagent
+infrastructure.
 
-A small React frontend now consumes the Phase 6 API so the agent can be tested
+A small React frontend now consumes the Phase 7 API so the agent can be tested
 interactively. It provides a durable thread list, transcript loading, streaming
 assistant text, tool progress, and structured artifact inspection. TanStack
 React Query caches committed thread/transcript server state; provisional SSE
 events remain in a local reducer until the completed transcript is refetched.
-Cancellation and reconnect are intentionally absent until their Phase 7 and 8
-backend contracts exist.
+The Stop control performs durable server-side cancellation. Redis-backed
+reconnect remains intentionally absent until Phase 8.
 
 The original stateless endpoint remains available. Each call to it starts with
 fresh graph state.
@@ -147,19 +148,22 @@ $second = Invoke-RestMethod `
   } | ConvertTo-Json -Depth 4)
 ```
 
-Stream a new durable turn with `POST` and a streaming HTTP client:
+Start a detached run, then attach a streaming HTTP client:
 
 ```text
-POST /api/v1/threads/messages/stream
-POST /api/v1/threads/{thread_id}/messages/stream
-Accept: text/event-stream
+POST /api/v1/threads/runs
+POST /api/v1/threads/{thread_id}/runs
+GET  /api/v1/runs/{run_id}/events
+POST /api/v1/runs/{run_id}/cancel
 ```
 
 The stream emits `metadata`, `message_chunk`, `tool_call`, `tool_result`,
 `artifact`, `error`, and `run_end`. `metadata` is first and `run_end` is last.
-A successful `run_end` is emitted only after the terminal PostgreSQL commit.
-The connection still owns execution in Phase 6, so disconnect-safe background
-runs and reconnectable replay remain future work.
+A successful or cancelled `run_end` is emitted only after the terminal
+PostgreSQL commit. Browser disconnects detach from SSE without cancelling the
+background run. Events remain process-local in Phase 7; durable reconnectable
+replay is Phase 8 work. The older `/messages/stream` endpoints remain available
+as compatibility wrappers around detached execution.
 
 Clients should generate one `request_key` UUID per logical request and reuse it
 when retrying that same request. A completed retry returns the stored result
@@ -233,6 +237,7 @@ app/providers/                   provider protocol and Yahoo implementation
 app/services/company_research.py provider-neutral financial-data orchestration
 app/services/research_agent.py   transport-neutral graph execution
 app/services/thread_research.py  durable admission, execution, and finalization
+app/services/run_manager.py      detached worker, event attachment, cancellation
 migrations/                      application-owned PostgreSQL schema
 scripts/setup_database.py        Alembic and LangGraph checkpoint initialization
 scripts/run_api.py               psycopg-compatible API launcher
@@ -247,3 +252,4 @@ cli.py                           interactive stateless trace runner
 - [Phase 4–5 decision log](docs/phase-4-5-decision-log.md)
 - [Phase 4–5 API guide](docs/phase-4-5-api.md)
 - [Frontend architecture and run guide](docs/frontend.md)
+- [Phase 7 API and lifecycle guide](docs/phase-7-api.md)
