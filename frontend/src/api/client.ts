@@ -8,7 +8,17 @@ import type {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
-async function errorFrom(response: Response): Promise<Error> {
+class HttpResponseError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+    this.name = 'HttpResponseError'
+  }
+}
+
+async function errorFrom(response: Response): Promise<HttpResponseError> {
   let body: ApiError | null = null
   try {
     body = (await response.json()) as ApiError
@@ -17,7 +27,7 @@ async function errorFrom(response: Response): Promise<Error> {
   }
   const message =
     body?.error?.message ?? body?.detail ?? `${response.status} ${response.statusText}`
-  return new Error(message)
+  return new HttpResponseError(message, response.status)
 }
 
 export async function listThreads(signal?: AbortSignal): Promise<ThreadListResponse> {
@@ -66,28 +76,34 @@ export async function streamMessage(options: StreamOptions): Promise<void> {
   const accepted = (await response.json()) as RunAcceptedResponse
   options.onAccepted(accepted)
 
-  const eventsResponse = await fetch(`${API_BASE}${accepted.events_url}`, {
-    headers: { Accept: 'text/event-stream' },
-    signal: options.signal,
-  })
-  if (!eventsResponse.ok) throw await errorFrom(eventsResponse)
-  if (!eventsResponse.body) {
-    throw new Error('The browser did not expose the response stream.')
+  let lastEventId = 0
+  let terminal = false
+  let reconnectDelay = 250
+  while (!terminal) {
+    try {
+      const result = await attachEvents(
+        accepted.events_url,
+        lastEventId,
+        options.signal,
+        options.onEvent,
+      )
+      lastEventId = result.lastEventId
+      terminal = result.terminal
+      reconnectDelay = 250
+      if (!terminal) await abortableDelay(reconnectDelay, options.signal)
+    } catch (caught) {
+      if (options.signal.aborted) throw caught
+      if (
+        caught instanceof HttpResponseError &&
+        caught.status < 500 &&
+        caught.status !== 429
+      ) {
+        throw caught
+      }
+      await abortableDelay(reconnectDelay, options.signal)
+      reconnectDelay = Math.min(reconnectDelay * 2, 5_000)
+    }
   }
-
-  const reader = eventsResponse.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n')
-    const frames = buffer.split('\n\n')
-    buffer = frames.pop() ?? ''
-    for (const frame of frames) parseFrame(frame, options.onEvent)
-    if (done) break
-  }
-  if (buffer.trim()) parseFrame(buffer, options.onEvent)
 }
 
 export async function cancelRun(runId: string): Promise<void> {
@@ -98,13 +114,69 @@ export async function cancelRun(runId: string): Promise<void> {
   if (!response.ok) throw await errorFrom(response)
 }
 
-function parseFrame(frame: string, onEvent: (event: RunEvent) => void): void {
+async function attachEvents(
+  eventsUrl: string,
+  lastEventId: number,
+  signal: AbortSignal,
+  onEvent: (event: RunEvent) => void,
+): Promise<{ lastEventId: number; terminal: boolean }> {
+  const headers: Record<string, string> = { Accept: 'text/event-stream' }
+  if (lastEventId > 0) headers['Last-Event-ID'] = String(lastEventId)
+  const response = await fetch(`${API_BASE}${eventsUrl}`, { headers, signal })
+  if (!response.ok) throw await errorFrom(response)
+  if (!response.body) throw new Error('The browser did not expose the response stream.')
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let cursor = lastEventId
+  let terminal = false
+  while (true) {
+    const { done, value } = await reader.read()
+    buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n')
+    const frames = buffer.split('\n\n')
+    buffer = frames.pop() ?? ''
+    for (const frame of frames) {
+      const event = parseFrame(frame)
+      if (!event) continue
+      cursor = Math.max(cursor, event.event_id)
+      terminal ||= event.event === 'run_end'
+      onEvent(event)
+    }
+    if (done || terminal) break
+  }
+  if (buffer.trim() && !terminal) {
+    const event = parseFrame(buffer)
+    if (event) {
+      cursor = Math.max(cursor, event.event_id)
+      terminal = event.event === 'run_end'
+      onEvent(event)
+    }
+  }
+  return { lastEventId: cursor, terminal }
+}
+
+function parseFrame(frame: string): RunEvent | null {
   const data = frame
     .split('\n')
     .filter((line) => line.startsWith('data:'))
     .map((line) => line.slice(5).trimStart())
     .join('\n')
-  if (!data) return
-  onEvent(JSON.parse(data) as RunEvent)
+  if (!data) return null
+  return JSON.parse(data) as RunEvent
+}
+
+function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      window.clearTimeout(timeout)
+      reject(new DOMException('The request was aborted.', 'AbortError'))
+    }
+    const timeout = window.setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, milliseconds)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
 }
 

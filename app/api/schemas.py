@@ -80,7 +80,7 @@ class HealthResponse(BaseModel):
 
     status: Literal["ok"]
     service: Literal["mini-alpha"]
-    phase: Literal[7]
+    phase: Literal[8]
 
 
 class ReadinessResponse(BaseModel):
@@ -88,7 +88,7 @@ class ReadinessResponse(BaseModel):
 
     status: Literal["ready"]
     service: Literal["mini-alpha"]
-    phase: Literal[7]
+    phase: Literal[8]
     persistence: Literal["ready"]
 
 

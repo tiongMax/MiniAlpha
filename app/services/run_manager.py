@@ -1,4 +1,4 @@
-"""Application-scoped detached execution and ephemeral event attachment."""
+"""Application-scoped detached execution and replayable event attachment."""
 
 import asyncio
 from collections.abc import AsyncIterator
@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from app.events.models import RunEvent
+from app.events.store import InMemoryRunEventStore, RunEventStore
 from app.persistence.models import ConversationRun
 from app.persistence.repository import RunLifecycleConflictError, RunNotFoundError
 from app.services.thread_research import (
@@ -30,30 +31,31 @@ class RunSubmission:
 
 @dataclass(slots=True)
 class _RunChannel:
-    """Process-local event buffer shared by execution and SSE attachments."""
+    """Process-local execution ownership and cancellation state."""
 
     run: ConversationRun
     events: list[RunEvent] = field(default_factory=list)
     terminal: bool = False
     cancel_requested: bool = False
     execution: asyncio.Task[None] | None = None
-    changed: asyncio.Condition = field(default_factory=asyncio.Condition)
+    changed: asyncio.Lock = field(default_factory=asyncio.Lock)
 
-    async def publish(self, event: RunEvent) -> None:
+    async def record(self, event: RunEvent) -> bool:
+        """Record locally-owned evidence and reject events after terminal."""
         async with self.changed:
             if self.terminal:
-                return
+                return False
             self.events.append(event)
             if event.event == "run_end":
                 self.terminal = True
-            self.changed.notify_all()
+            return True
 
     async def publish_terminal(
         self, status: str, error_code: str | None = None
-    ) -> None:
+    ) -> RunEvent | None:
         async with self.changed:
             if self.terminal:
-                return
+                return None
             data: dict[str, object] = {"status": status}
             if error_code is not None:
                 data["error_code"] = error_code
@@ -68,7 +70,7 @@ class _RunChannel:
                 )
             )
             self.terminal = True
-            self.changed.notify_all()
+            return self.events[-1]
 
     async def cancellation_snapshot(
         self,
@@ -104,9 +106,11 @@ class DetachedRunManager:
         self,
         service: ThreadResearchService,
         *,
+        event_store: RunEventStore | None = None,
         shutdown_grace_seconds: float = 10.0,
     ) -> None:
         self._service = service
+        self._event_store = event_store or InMemoryRunEventStore()
         self._shutdown_grace_seconds = shutdown_grace_seconds
         self._channels: dict[UUID, _RunChannel] = {}
         self._queue: asyncio.Queue[ThreadResearchStream | None] = asyncio.Queue()
@@ -193,28 +197,43 @@ class DetachedRunManager:
             replayed=prepared.admission.replayed,
         )
 
-    async def events(self, run_id: UUID) -> AsyncIterator[RunEvent]:
-        """Replay buffered events, then follow the run until terminal."""
-        channel = self._channels.get(run_id)
-        if channel is None:
-            await self._service.get_turn(run_id)
-            raise RunNotFoundError(
-                "Live events for this run are no longer available in this process."
+    async def ensure_events_available(self, run_id: UUID) -> None:
+        """Validate a run cursor before response headers are committed."""
+        turn = await self._service.get_turn(run_id)
+        if turn.run.status == "in_progress":
+            return
+        latest = await self._event_store.latest(run_id)
+        if latest is None:
+            raise RunNotFoundError("Live events for this run have expired.")
+        if latest.event == "run_end" or run_id in self._channels:
+            return
+        data: dict[str, object] = {"status": turn.run.status}
+        if turn.run.error_code is not None:
+            data["error_code"] = turn.run.error_code
+        await self._event_store.publish(
+            RunEvent(
+                event_id=latest.event_id + 1,
+                event="run_end",
+                run_id=turn.run.run_id,
+                thread_id=turn.run.thread_id,
+                timestamp=datetime.now(UTC),
+                data=data,
             )
+        )
 
-        index = 0
-        while True:
-            async with channel.changed:
-                await channel.changed.wait_for(
-                    lambda index=index: index < len(channel.events) or channel.terminal
-                )
-                pending = tuple(channel.events[index:])
-                index = len(channel.events)
-                terminal = channel.terminal
-            for event in pending:
-                yield event
-            if terminal:
-                return
+    async def events(
+        self,
+        run_id: UUID,
+        *,
+        after_event_id: int = 0,
+    ) -> AsyncIterator[RunEvent]:
+        """Replay and follow events strictly after the supplied cursor."""
+        await self.ensure_events_available(run_id)
+        async for event in self._event_store.events(
+            run_id,
+            after_event_id=after_event_id,
+        ):
+            yield event
 
     async def cancel(self, run_id: UUID) -> ConversationRun:
         """Persist cancellation and interrupt graph execution if it is active."""
@@ -241,7 +260,9 @@ class DetachedRunManager:
             artifacts=artifacts,
         )
         channel.run = cancelled
-        await channel.publish_terminal("cancelled")
+        terminal = await channel.publish_terminal("cancelled")
+        if terminal is not None:
+            await self._event_store.publish(terminal)
         return cancelled
 
     async def _work(self) -> None:
@@ -274,7 +295,8 @@ class DetachedRunManager:
     ) -> None:
         try:
             async for event in self._service.stream(prepared):
-                await channel.publish(event)
+                if await channel.record(event):
+                    await self._event_store.publish(event)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -290,7 +312,9 @@ class DetachedRunManager:
                     channel.run = failed
                 except RunLifecycleConflictError:
                     pass
-                await channel.publish_terminal("error", "worker_failed")
+                terminal = await channel.publish_terminal("error", "worker_failed")
+                if terminal is not None:
+                    await self._event_store.publish(terminal)
 
     async def _interrupt_open_channels(self) -> None:
         """Durably fail accepted work that outlived the shutdown grace period."""
@@ -308,4 +332,6 @@ class DetachedRunManager:
                 channel.run = failed
             except RunLifecycleConflictError:
                 continue
-            await channel.publish_terminal("error", "process_interrupted")
+            terminal = await channel.publish_terminal("error", "process_interrupted")
+            if terminal is not None:
+                await self._event_store.publish(terminal)

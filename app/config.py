@@ -25,6 +25,31 @@ def get_database_url() -> str:
     return database_url
 
 
+def get_redis_url() -> str:
+    """Return the Redis URL required by replayable run events."""
+    load_dotenv()
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if not redis_url:
+        raise RuntimeError(
+            "Missing required configuration: REDIS_URL. "
+            "Copy .env.example to .env and fill in the value."
+        )
+    return redis_url
+
+
+def get_positive_int(name: str, default: int) -> int:
+    """Return a positive integer setting from the environment."""
+    load_dotenv()
+    raw_value = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw_value)
+    except ValueError as error:
+        raise RuntimeError(f"{name} must be an integer.") from error
+    if value <= 0:
+        raise RuntimeError(f"{name} must be greater than zero.")
+    return value
+
+
 def get_timeout_seconds(name: str, default: float) -> float:
     """Return a positive timeout from the environment."""
     load_dotenv()
