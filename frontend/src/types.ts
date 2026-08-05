@@ -57,6 +57,7 @@ export interface ThreadTranscriptResponse {
 
 export type RunEventName =
   | 'metadata'
+  | 'progress'
   | 'message_chunk'
   | 'tool_call'
   | 'tool_result'
@@ -90,6 +91,11 @@ export interface ChatTurn {
   status: RunStatus
   tools: ToolCall[]
   artifacts: Artifact[]
+  progress?: {
+    phase: string
+    message: string
+    startedAt: string
+  }
   error?: string
 }
 

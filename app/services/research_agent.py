@@ -54,6 +54,7 @@ class ResearchExecutionContext:
 
 
 AgentEventName = Literal[
+    "progress",
     "message_chunk",
     "tool_call",
     "tool_result",
@@ -182,6 +183,15 @@ class ResearchAgentService:
         final_state: ResearchState | None = None
         seen_tool_calls: set[str] = set()
         seen_tool_results: set[str] = set()
+        phase = "planning"
+
+        yield AgentStreamEvent(
+            event="progress",
+            data={
+                "phase": phase,
+                "message": "Planning research and selecting data tools…",
+            },
+        )
 
         try:
             async for mode, payload in self._graph.astream(
@@ -192,6 +202,15 @@ class ResearchAgentService:
                 if mode == "messages":
                     chunk_event = self._message_chunk_event(payload)
                     if chunk_event is not None:
+                        if phase != "synthesizing":
+                            phase = "synthesizing"
+                            yield AgentStreamEvent(
+                                event="progress",
+                                data={
+                                    "phase": phase,
+                                    "message": "Writing the research answer…",
+                                },
+                            )
                         yield chunk_event
                     continue
                 if mode != "values" or not isinstance(payload, dict):
@@ -200,8 +219,33 @@ class ResearchAgentService:
                 state = cast(ResearchState, payload)
                 final_state = state
                 messages = self._messages_after_marker(state["messages"], marker_id)
+                new_results = False
                 for graph_message in messages:
                     if isinstance(graph_message, AIMessage):
+                        new_calls = [
+                            call
+                            for index, call in enumerate(graph_message.tool_calls)
+                            if str(
+                                call.get("id")
+                                or f"{graph_message.id or 'message'}:{index}"
+                            )
+                            not in seen_tool_calls
+                        ]
+                        if new_calls:
+                            phase = "running_tools"
+                            yield AgentStreamEvent(
+                                event="progress",
+                                data={
+                                    "phase": phase,
+                                    "message": (
+                                        f"Running {len(new_calls)} financial "
+                                        f"{'tool' if len(new_calls) == 1 else 'tools'}…"
+                                    ),
+                                    "tools": [
+                                        str(call.get("name", "")) for call in new_calls
+                                    ],
+                                },
+                            )
                         for index, call in enumerate(graph_message.tool_calls):
                             call_id = str(
                                 call.get("id")
@@ -230,6 +274,7 @@ class ResearchAgentService:
                     if call_id in seen_tool_results:
                         continue
                     seen_tool_results.add(call_id)
+                    new_results = True
                     artifact = (
                         cast(dict[str, object], graph_message.artifact)
                         if isinstance(graph_message.artifact, dict)
@@ -251,6 +296,17 @@ class ResearchAgentService:
                     )
                     if artifact is not None:
                         yield AgentStreamEvent(event="artifact", data=artifact)
+                if new_results and phase == "running_tools":
+                    phase = "synthesizing"
+                    yield AgentStreamEvent(
+                        event="progress",
+                        data={
+                            "phase": phase,
+                            "message": (
+                                "Reviewing tool results and preparing the answer…"
+                            ),
+                        },
+                    )
         except ResearchExecutionError:
             raise
         except ModelInvocationTimeout as error:

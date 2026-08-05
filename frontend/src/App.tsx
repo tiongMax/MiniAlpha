@@ -69,8 +69,8 @@ function ThreadSidebar({
         {!visible.length && <p className="empty-list">No saved threads yet.</p>}
       </nav>
       <div className="phase-note">
-        <span>Phase 11 fundamentals</span>
-        Statements · filings · ownership
+        <span>Phase 12 quantitative</span>
+        Risk · indicators · backtests
       </div>
     </aside>
   )
@@ -92,6 +92,23 @@ function ToolCard({ tool }: { tool: ToolCall }) {
   )
 }
 
+function ProgressStatus({ turn }: { turn: ChatTurn }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const started = turn.progress ? new Date(turn.progress.startedAt).getTime() : now
+  const elapsed = Math.max(0, Math.floor((now - started) / 1_000))
+  const message = turn.progress?.message ?? 'Researching…'
+  return (
+    <div className="thinking" role="status" aria-live="polite">
+      <i /><i /><i />
+      <span>{message} · {elapsed}s</span>
+    </div>
+  )
+}
+
 function Turn({ turn }: { turn: ChatTurn }) {
   return (
     <article className="turn">
@@ -103,12 +120,11 @@ function Turn({ turn }: { turn: ChatTurn }) {
         <div className="avatar agent-avatar"><Bot size={17} /></div>
         <div className="assistant-content">
           <div className="message-label">MiniAlpha</div>
+          {turn.status === 'in_progress' && <ProgressStatus turn={turn} />}
           {turn.tools.length > 0 && <div className="tool-stack">{turn.tools.map((tool, index) => <ToolCard key={tool.tool_call_id ?? index} tool={tool} />)}</div>}
           {turn.artifacts.length > 0 && <ArtifactStack artifacts={turn.artifacts} />}
           {turn.assistant ? (
             <div className="markdown"><Markdown remarkPlugins={[remarkGfm]}>{turn.assistant}</Markdown></div>
-          ) : turn.status === 'in_progress' ? (
-            <div className="thinking"><i /><i /><i /><span>Researching</span></div>
           ) : null}
           {turn.status === 'cancelled' && <div className="inline-notice">Research run cancelled.</div>}
           {turn.error && <div className="inline-error">{turn.error}</div>}
@@ -122,7 +138,7 @@ function EmptyState({ onPrompt }: { onPrompt: (prompt: string) => void }) {
   const prompts = [
     'Give me a company overview of Apple',
     'Compare Microsoft and Nvidia',
-    'What is Tesla’s recent price trend?',
+    'Backtest a 20/50-day strategy for Apple',
   ]
   return (
     <div className="empty-state">

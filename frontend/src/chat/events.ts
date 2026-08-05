@@ -18,6 +18,20 @@ export function reduceRunEvent(turn: ChatTurn, event: RunEvent): ChatTurn {
         ...turn,
         id: event.run_id,
         turnIndex: typeof data.turn_index === 'number' ? data.turn_index : turn.turnIndex,
+        progress: {
+          phase: 'admitted',
+          message: 'Run admitted. Waiting for the research worker…',
+          startedAt: event.timestamp,
+        },
+      }
+    case 'progress':
+      return {
+        ...turn,
+        progress: {
+          phase: text(data.phase) ?? 'working',
+          message: text(data.message) ?? 'Research is in progress…',
+          startedAt: turn.progress?.startedAt ?? event.timestamp,
+        },
       }
     case 'message_chunk':
       return { ...turn, assistant: turn.assistant + (text(data.delta) ?? '') }
@@ -54,11 +68,13 @@ export function reduceRunEvent(turn: ChatTurn, event: RunEvent): ChatTurn {
       return {
         ...turn,
         status: 'error',
+        progress: undefined,
         error: text(data.message) ?? 'The run failed.',
       }
     case 'run_end':
       return {
         ...turn,
+        progress: undefined,
         status:
           data.status === 'completed'
             ? 'completed'
