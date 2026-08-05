@@ -1,6 +1,7 @@
 """Yahoo Finance adapter for the normalized company-data contract."""
 
 import asyncio
+import math
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Protocol, SupportsFloat, cast
@@ -13,6 +14,7 @@ from app.domain.errors import (
     FinancialProviderTimeout,
     SymbolNotFoundError,
 )
+from app.domain.prices import PriceHistory, PricePoint
 
 
 class _StringKeyed(Protocol):
@@ -69,7 +71,8 @@ def _number(value: object) -> float | None:
         return None
     try:
         numeric_value = cast(str | SupportsFloat, value)
-        return float(numeric_value)
+        converted = float(numeric_value)
+        return converted if math.isfinite(converted) else None
     except (TypeError, ValueError):
         return None
 
@@ -150,6 +153,35 @@ class YahooFinanceProvider:
                 f"Yahoo Finance could not retrieve data for {symbol}."
             ) from error
 
+    async def get_price_history(
+        self,
+        symbol: str,
+        *,
+        period: str,
+        interval: str,
+    ) -> PriceHistory:
+        """Retrieve normalized Yahoo OHLCV history off the event loop."""
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._fetch_price_history,
+                    symbol,
+                    period,
+                    interval,
+                ),
+                timeout=self.timeout_seconds,
+            )
+        except TimeoutError as error:
+            raise FinancialProviderTimeout(
+                f"Yahoo Finance timed out while retrieving prices for {symbol}."
+            ) from error
+        except SymbolNotFoundError:
+            raise
+        except Exception as error:
+            raise FinancialProviderError(
+                f"Yahoo Finance could not retrieve prices for {symbol}."
+            ) from error
+
     def _fetch(self, symbol: str) -> CompanyOverview:
         """Perform the blocking Yahoo lookup and field mapping.
 
@@ -211,6 +243,55 @@ class YahooFinanceProvider:
                 )
             ),
             beta=_number(info.get("beta")),
+            provider="Yahoo Finance",
+            retrieved_at=datetime.now(UTC),
+        )
+
+    def _fetch_price_history(
+        self,
+        symbol: str,
+        period: str,
+        interval: str,
+    ) -> PriceHistory:
+        """Perform the blocking Yahoo history request and normalize rows."""
+        ticker = yf.Ticker(symbol)
+        history = ticker.history(
+            period=period,
+            interval=interval,
+            auto_adjust=False,
+        )
+        points: list[PricePoint] = []
+        for raw_timestamp, row in history.iterrows():
+            close = _number(_value(row, "Close"))
+            if close is None:
+                continue
+            timestamp = raw_timestamp.to_pydatetime()
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=UTC)
+            else:
+                timestamp = timestamp.astimezone(UTC)
+            raw_volume = _number(_value(row, "Volume"))
+            points.append(
+                PricePoint(
+                    timestamp=timestamp,
+                    open=_number(_value(row, "Open")),
+                    high=_number(_value(row, "High")),
+                    low=_number(_value(row, "Low")),
+                    close=close,
+                    volume=int(raw_volume) if raw_volume is not None else None,
+                )
+            )
+        if not points:
+            raise SymbolNotFoundError(
+                f"Yahoo Finance has no price history for {symbol}."
+            )
+        currency = _text(_value(ticker.fast_info, "currency"))
+        return PriceHistory(
+            symbol=symbol,
+            currency=currency,
+            period=period,
+            interval=interval,
+            points=tuple(points),
             provider="Yahoo Finance",
             retrieved_at=datetime.now(UTC),
         )
