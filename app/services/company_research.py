@@ -1,15 +1,31 @@
 """Provider-neutral company research orchestration."""
 
+import asyncio
 import re
+from datetime import UTC, datetime
 
 from app.domain.company import CompanyOverview
-from app.domain.errors import InvalidPriceQueryError, InvalidSymbolError
+from app.domain.errors import (
+    InvalidFundamentalQueryError,
+    InvalidPriceQueryError,
+    InvalidSymbolError,
+)
+from app.domain.fundamentals import FundamentalDataset
 from app.domain.prices import PriceHistory
 from app.providers.base import FinancialDataProvider
 
 _SYMBOL_PATTERN = re.compile(r"^[A-Z0-9^][A-Z0-9.^=-]{0,19}$")
 _PRICE_PERIODS = frozenset({"1mo", "3mo", "6mo", "1y", "2y", "5y"})
 _PRICE_INTERVALS = frozenset({"1d", "1wk", "1mo"})
+_STATEMENT_FREQUENCY_ALIASES = {
+    "annual": "yearly",
+    "annually": "yearly",
+    "year": "yearly",
+    "yearly": "yearly",
+    "quarter": "quarterly",
+    "quarters": "quarterly",
+    "quarterly": "quarterly",
+}
 
 
 def normalize_symbol(symbol: str) -> str:
@@ -87,4 +103,81 @@ class CompanyResearchService:
             normalize_symbol(symbol),
             period=normalized_period,
             interval=normalized_interval,
+        )
+
+    async def get_financial_statements(
+        self, symbol: str, *, frequency: str = "yearly"
+    ) -> FundamentalDataset:
+        normalized_frequency = _STATEMENT_FREQUENCY_ALIASES.get(
+            frequency.strip().lower()
+        )
+        if normalized_frequency is None:
+            raise InvalidFundamentalQueryError(
+                "Choose a statement frequency of yearly or quarterly."
+            )
+        return await self.provider.get_financial_statements(
+            normalize_symbol(symbol), frequency=normalized_frequency
+        )
+
+    async def get_fundamental_ratios(self, symbol: str) -> FundamentalDataset:
+        return await self.provider.get_fundamental_ratios(normalize_symbol(symbol))
+
+    async def get_analyst_estimates(self, symbol: str) -> FundamentalDataset:
+        return await self.provider.get_analyst_estimates(normalize_symbol(symbol))
+
+    @staticmethod
+    def _limit(limit: int) -> int:
+        if isinstance(limit, bool) or not 1 <= limit <= 20:
+            raise InvalidFundamentalQueryError("Choose a result limit from 1 to 20.")
+        return limit
+
+    async def get_sec_filings(
+        self, symbol: str, *, limit: int = 10
+    ) -> FundamentalDataset:
+        normalized_limit = self._limit(limit)
+        return await self.provider.get_sec_filings(
+            normalize_symbol(symbol), limit=normalized_limit
+        )
+
+    async def get_ownership(
+        self, symbol: str, *, limit: int = 10
+    ) -> FundamentalDataset:
+        normalized_limit = self._limit(limit)
+        return await self.provider.get_ownership(
+            normalize_symbol(symbol), limit=normalized_limit
+        )
+
+    async def get_insider_activity(
+        self, symbol: str, *, limit: int = 10
+    ) -> FundamentalDataset:
+        normalized_limit = self._limit(limit)
+        return await self.provider.get_insider_activity(
+            normalize_symbol(symbol), limit=normalized_limit
+        )
+
+    async def get_company_news(
+        self, symbol: str, *, limit: int = 8
+    ) -> FundamentalDataset:
+        normalized_limit = self._limit(limit)
+        return await self.provider.get_company_news(
+            normalize_symbol(symbol), limit=normalized_limit
+        )
+
+    async def compare_companies(self, symbols: list[str]) -> FundamentalDataset:
+        normalized = list(dict.fromkeys(normalize_symbol(symbol) for symbol in symbols))
+        if not 2 <= len(normalized) <= 5:
+            raise InvalidFundamentalQueryError(
+                "Compare between 2 and 5 distinct ticker symbols."
+            )
+        overviews = await asyncio.gather(
+            *(self.provider.get_company_overview(symbol) for symbol in normalized)
+        )
+        retrieved_at = datetime.now(UTC)
+        return FundamentalDataset(
+            symbol=",".join(normalized),
+            dataset="company_comparison",
+            currency=None,
+            records=tuple(overview.to_dict() for overview in overviews),
+            provider="; ".join(dict.fromkeys(item.provider for item in overviews)),
+            retrieved_at=retrieved_at,
         )

@@ -13,6 +13,10 @@ class InvalidPriceQueryError(FinancialDataError):
     """Raised when a requested price period or interval is unsupported."""
 
 
+class InvalidFundamentalQueryError(FinancialDataError):
+    """Raised when a fundamental dataset query exceeds supported bounds."""
+
+
 class SymbolNotFoundError(FinancialDataError):
     """Raised when a provider has no company data for a valid ticker."""
 

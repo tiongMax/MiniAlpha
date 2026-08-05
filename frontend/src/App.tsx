@@ -69,8 +69,8 @@ function ThreadSidebar({
         {!visible.length && <p className="empty-list">No saved threads yet.</p>}
       </nav>
       <div className="phase-note">
-        <span>Phase 10 artifacts</span>
-        Company cards · price charts
+        <span>Phase 11 fundamentals</span>
+        Statements · filings · ownership
       </div>
     </aside>
   )

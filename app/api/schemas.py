@@ -36,6 +36,8 @@ class ToolCallResponse(BaseModel):
     arguments: dict[str, object] = Field(
         description="Validated arguments supplied to the tool."
     )
+    status: Literal["ok", "error"] | None = None
+    summary: str | None = None
 
 
 class ArtifactResponse(BaseModel):
@@ -80,7 +82,7 @@ class HealthResponse(BaseModel):
 
     status: Literal["ok"]
     service: Literal["mini-alpha"]
-    phase: Literal[10]
+    phase: Literal[11]
 
 
 class ReadinessResponse(BaseModel):
@@ -88,7 +90,7 @@ class ReadinessResponse(BaseModel):
 
     status: Literal["ready"]
     service: Literal["mini-alpha"]
-    phase: Literal[10]
+    phase: Literal[11]
     persistence: Literal["ready"]
 
 

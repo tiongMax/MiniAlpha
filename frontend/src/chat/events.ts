@@ -40,8 +40,16 @@ export function reduceRunEvent(turn: ChatTurn, event: RunEvent): ChatTurn {
       )
       return { ...turn, tools: nextTools }
     }
-    case 'artifact':
-      return { ...turn, artifacts: [...turn.artifacts, data as unknown as Artifact] }
+    case 'artifact': {
+      const artifact = data as unknown as Artifact
+      const artifacts = artifact.status === 'ok'
+        ? turn.artifacts.filter(
+            (existing) =>
+              existing.artifact_type !== artifact.artifact_type || existing.status !== 'error',
+          )
+        : turn.artifacts
+      return { ...turn, artifacts: [...artifacts, artifact] }
+    }
     case 'error':
       return {
         ...turn,

@@ -86,6 +86,65 @@ def test_extracts_answer_tool_calls_results_and_artifacts() -> None:
     assert result.checkpoint_id is None
 
 
+def test_retry_success_supersedes_error_artifact_and_preserves_tool_status() -> None:
+    """A corrected retry remains visible while its redundant error card is removed."""
+    service = ResearchAgentService(cast(ResearchGraph, SuccessfulGraph()))
+    messages = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "invalid-frequency",
+                    "name": "get_financial_statements",
+                    "args": {"symbol": "AAPL", "frequency": "monthly"},
+                    "type": "tool_call",
+                }
+            ],
+        ),
+        ToolMessage(
+            content="Choose yearly or quarterly.",
+            tool_call_id="invalid-frequency",
+            name="get_financial_statements",
+            artifact={
+                "artifact_type": "financial_statements",
+                "schema_version": 1,
+                "status": "error",
+                "error": "Choose yearly or quarterly.",
+            },
+        ),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "corrected-frequency",
+                    "name": "get_financial_statements",
+                    "args": {"symbol": "AAPL", "frequency": "yearly"},
+                    "type": "tool_call",
+                }
+            ],
+        ),
+        ToolMessage(
+            content="Four yearly periods.",
+            tool_call_id="corrected-frequency",
+            name="get_financial_statements",
+            artifact={
+                "artifact_type": "financial_statements",
+                "schema_version": 1,
+                "status": "ok",
+                "data": {"symbol": "AAPL"},
+            },
+        ),
+        AIMessage(content="Apple has four reported periods."),
+    ]
+
+    result = service._extract_result(messages)
+
+    assert [call.status for call in result.tool_calls] == ["error", "ok"]
+    assert result.tool_calls[0].summary == "Choose yearly or quarterly."
+    assert len(result.artifacts) == 1
+    assert result.artifacts[0]["status"] == "ok"
+
+
 def test_rejects_graph_result_without_final_answer() -> None:
     """Verify malformed graph completion is an application-level failure."""
     service = ResearchAgentService(cast(ResearchGraph, AnswerlessGraph()))

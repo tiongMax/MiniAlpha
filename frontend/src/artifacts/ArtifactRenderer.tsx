@@ -41,6 +41,32 @@ interface PriceHistoryData extends RecordValue {
   retrieved_at?: string
 }
 
+interface CompanyComparisonData extends RecordValue {
+  records: CompanyOverviewData[]
+  provider?: string
+  retrieved_at?: string
+}
+
+interface FundamentalDatasetData extends RecordValue {
+  symbol: string
+  dataset: string
+  currency?: string | null
+  records: RecordValue[]
+  provider?: string
+  retrieved_at?: string
+  source_urls?: string[]
+}
+
+const FUNDAMENTAL_ARTIFACTS = new Set([
+  'financial_statements',
+  'fundamental_ratios',
+  'analyst_estimates',
+  'sec_filings',
+  'ownership',
+  'insider_activity',
+  'company_news',
+])
+
 const compactNumber = new Intl.NumberFormat(undefined, {
   notation: 'compact',
   maximumFractionDigits: 2,
@@ -52,9 +78,33 @@ function isRecord(value: unknown): value is RecordValue {
 
 function companyData(artifact: Artifact): CompanyOverviewData | null {
   const data = artifact.data
-  return artifact.artifact_type === 'company_overview' && isRecord(data) && typeof data.symbol === 'string'
-    ? (data as CompanyOverviewData)
+  return artifact.artifact_type === 'company_overview' && isCompanyOverview(data)
+    ? data
     : null
+}
+
+function isCompanyOverview(value: unknown): value is CompanyOverviewData {
+  return isRecord(value) && typeof value.symbol === 'string'
+}
+
+function comparisonData(artifact: Artifact): CompanyComparisonData | null {
+  const data = artifact.data
+  if (artifact.artifact_type !== 'company_comparison' || !isRecord(data) || !Array.isArray(data.records)) return null
+  const records = data.records.filter(isCompanyOverview)
+  return records.length >= 2 ? ({ ...data, records } as CompanyComparisonData) : null
+}
+
+function fundamentalData(artifact: Artifact): FundamentalDatasetData | null {
+  const data = artifact.data
+  if (
+    !FUNDAMENTAL_ARTIFACTS.has(artifact.artifact_type) || !isRecord(data) ||
+    typeof data.symbol !== 'string' || typeof data.dataset !== 'string' ||
+    !Array.isArray(data.records)
+  ) return null
+  return {
+    ...data,
+    records: data.records.filter(isRecord),
+  } as FundamentalDatasetData
 }
 
 function priceData(artifact: Artifact): PriceHistoryData | null {
@@ -194,12 +244,59 @@ function ComparisonTable({ companies }: { companies: CompanyOverviewData[] }) {
   )
 }
 
+function flattenRecord(record: RecordValue): RecordValue {
+  const flattened: RecordValue = {}
+  Object.entries(record).forEach(([key, value]) => {
+    if (isRecord(value)) {
+      Object.entries(value).forEach(([nestedKey, nestedValue]) => {
+        flattened[`${key}.${nestedKey}`] = nestedValue
+      })
+    } else {
+      flattened[key] = value
+    }
+  })
+  return flattened
+}
+
+function evidenceValue(value: unknown, key: string, currency?: string | null) {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'number') {
+    if (/(margin|growth|yield|return_on|percent|debt_to_equity)/.test(key)) return percent(value)
+    return money(value, /(revenue|income|cash|debt|assets|liabilities|equity|value|target|expenditure|repurchase|dividend)/.test(key) ? currency : null)
+  }
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  return String(value)
+}
+
+function FundamentalTable({ data }: { data: FundamentalDatasetData }) {
+  const records = data.records.map(flattenRecord)
+  const columns = Array.from(new Set(records.flatMap((record) => Object.keys(record))))
+  return (
+    <section className="comparison-card">
+      <header className="artifact-header">
+        <span className="artifact-icon"><Database size={17} /></span>
+        <div><strong>{data.dataset.replaceAll('_', ' ')}</strong><span>{data.symbol} · {records.length} records</span></div>
+      </header>
+      <div className="comparison-scroll"><table><thead><tr>{columns.map((column) => <th key={column}>{column.replaceAll('_', ' ').replaceAll('.', ' · ')}</th>)}</tr></thead><tbody>{records.map((record, index) => <tr key={index}>{columns.map((column) => {
+        const value = record[column]
+        const rendered = evidenceValue(value, column, data.currency)
+        return <td key={column}>{column.endsWith('url') && typeof value === 'string' ? <a href={value} target="_blank" rel="noreferrer">Source</a> : rendered}</td>
+      })}</tr>)}</tbody></table></div>
+      <footer className="artifact-source"><Database size={12} /> {sourceLine(data) || 'Source unavailable'}</footer>
+    </section>
+  )
+}
+
 function ArtifactView({ artifact }: { artifact: Artifact }) {
   if (artifact.status === 'error') return <FallbackArtifact artifact={artifact} />
   const company = companyData(artifact)
   if (company) return <CompanyOverviewCard data={company} />
   const prices = priceData(artifact)
   if (prices) return <PriceChart data={prices} />
+  const comparison = comparisonData(artifact)
+  if (comparison) return <ComparisonTable companies={comparison.records} />
+  const fundamentals = fundamentalData(artifact)
+  if (fundamentals) return <FundamentalTable data={fundamentals} />
   return <FallbackArtifact artifact={artifact} />
 }
 

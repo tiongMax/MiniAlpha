@@ -20,6 +20,8 @@ class ExecutedToolCall:
 
     name: str
     arguments: dict[str, object]
+    status: Literal["ok", "error"] | None = None
+    summary: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,6 +330,7 @@ class ResearchAgentService:
         tool_calls: list[ExecutedToolCall] = []
         tool_results: list[ExecutedToolResult] = []
         artifacts: list[dict[str, object]] = []
+        call_positions: dict[str, int] = {}
 
         for graph_message in messages:
             if isinstance(graph_message, AIMessage):
@@ -338,6 +341,9 @@ class ResearchAgentService:
                         if isinstance(raw_arguments, dict)
                         else {}
                     )
+                    call_id = str(call.get("id") or "")
+                    if call_id:
+                        call_positions[call_id] = len(tool_calls)
                     tool_calls.append(
                         ExecutedToolCall(
                             name=str(call.get("name", "")),
@@ -355,6 +361,12 @@ class ResearchAgentService:
             ):
                 artifact = cast(dict[str, object], graph_message.artifact)
                 artifacts.append(artifact)
+                self._record_tool_outcome(
+                    tool_calls,
+                    call_positions,
+                    graph_message,
+                    artifact_status=artifact.get("status"),
+                )
                 tool_results.append(
                     ExecutedToolResult(
                         name=graph_message.name or "unknown",
@@ -363,6 +375,12 @@ class ResearchAgentService:
                     )
                 )
             elif isinstance(graph_message, ToolMessage):
+                self._record_tool_outcome(
+                    tool_calls,
+                    call_positions,
+                    graph_message,
+                    artifact_status="ok",
+                )
                 tool_results.append(
                     ExecutedToolResult(
                         name=graph_message.name or "unknown",
@@ -380,9 +398,49 @@ class ResearchAgentService:
             answer=answer,
             tool_calls=tuple(tool_calls),
             tool_results=tuple(tool_results),
-            artifacts=tuple(artifacts),
+            artifacts=self._without_superseded_errors(artifacts),
             checkpoint_id=None,
         )
+
+    @staticmethod
+    def _record_tool_outcome(
+        calls: list[ExecutedToolCall],
+        positions: dict[str, int],
+        message: ToolMessage,
+        *,
+        artifact_status: object,
+    ) -> None:
+        index = positions.get(message.tool_call_id)
+        if index is None:
+            return
+        existing = calls[index]
+        status: Literal["ok", "error"] = "error" if artifact_status == "error" else "ok"
+        calls[index] = ExecutedToolCall(
+            name=existing.name,
+            arguments=existing.arguments,
+            status=status,
+            summary=text_content(message.content),
+        )
+
+    @staticmethod
+    def _without_superseded_errors(
+        artifacts: list[dict[str, object]],
+    ) -> tuple[dict[str, object], ...]:
+        """Drop an error artifact when a later retry of its type succeeds."""
+        successful_types: set[str] = set()
+        kept: list[dict[str, object]] = []
+        for artifact in reversed(artifacts):
+            artifact_type = artifact.get("artifact_type")
+            if not isinstance(artifact_type, str):
+                kept.append(artifact)
+                continue
+            if artifact.get("status") == "ok":
+                successful_types.add(artifact_type)
+                kept.append(artifact)
+            elif artifact_type not in successful_types:
+                kept.append(artifact)
+        kept.reverse()
+        return tuple(kept)
 
     def _execution_config(
         self,

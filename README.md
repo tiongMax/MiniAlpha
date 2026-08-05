@@ -4,10 +4,10 @@ MiniAlpha is a learning project that rebuilds the core research loop behind
 LangAlpha with an explicit LangGraph instead of
 `langchain.agents.create_agent`.
 
-## Phase 10 structured financial artifacts
+## Phase 11 fundamental research
 
-Phase 10 builds on the detached, reconnectable run lifecycle with typed
-financial evidence and purpose-built rendering:
+Phase 11 builds on the detached, reconnectable run lifecycle and structured
+artifacts with a broader fundamental-research toolset:
 
 ```text
 HTTP client
@@ -17,7 +17,7 @@ HTTP client
        -> conversation repository -> PostgreSQL application tables
        -> ResearchAgentService -> explicit LangGraph
                                   -> PostgreSQL checkpoints
-                                  -> overview + price-history tools -> Yahoo Finance
+                                  -> fundamental research tools -> Yahoo Finance
                                   -> application event translator -> Redis Streams -> SSE
   -> React artifact renderer -> company cards, charts, comparison tables
 ```
@@ -34,10 +34,12 @@ Redis is live transport rather than lifecycle truth. MiniAlpha does not yet
 copy LangAlpha's multi-worker coordination, authentication, workspaces,
 sandboxing, MCP, PTC, or subagent infrastructure.
 
-A small React frontend now consumes the Phase 10 API so the agent can be tested
+A small React frontend now consumes the Phase 11 API so the agent can be tested
 interactively. It provides a durable thread list, transcript loading, streaming
 assistant text, tool progress, company overview cards, historical price charts,
-and comparisons derived from multiple company artifacts. TanStack
+and comparisons derived from multiple company artifacts. The agent can also
+retrieve statements, ratios, estimates, SEC filing metadata, ownership,
+insider activity, and recent news. TanStack
 React Query caches committed thread/transcript server state; provisional SSE
 events remain in a local reducer until the completed transcript is refetched.
 The Stop control performs durable server-side cancellation. Interrupted event
@@ -243,7 +245,7 @@ app/agent/                       explicit graph, state, tools, and routing
 app/api/main.py                  FastAPI factory, lifespan, and error mapping
 app/api/routes/                  health, readiness, stateless, and thread routes
 app/api/schemas.py               strict public HTTP contracts
-app/domain/                      normalized company data and expected errors
+app/domain/                      normalized company and fundamental datasets
 app/domain/prices.py             normalized OHLCV price-history contract
 app/persistence/                 repository contract and memory/Postgres adapters
 app/providers/                   provider protocol and Yahoo implementation
@@ -270,3 +272,4 @@ cli.py                           interactive stateless trace runner
 - [Phase 7 API and lifecycle guide](docs/phase-7-api.md)
 - [Phase 8 Redis reconnect guide](docs/phase-8-api.md)
 - [Phase 10 structured artifact guide](docs/phase-10-artifacts.md)
+- [Phase 11 fundamental research guide](docs/phase-11-fundamentals.md)

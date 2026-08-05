@@ -1,11 +1,13 @@
 """Agent-facing financial research tools."""
 
+import json
 from collections.abc import Sequence
 
 from langchain_core.tools import BaseTool, tool
 
 from app.domain.company import CompanyOverview
 from app.domain.errors import FinancialDataError
+from app.domain.fundamentals import FundamentalDataset
 from app.domain.prices import PriceHistory
 from app.providers.yahoo import YahooFinanceProvider
 from app.services.company_research import CompanyResearchService
@@ -136,6 +138,61 @@ def format_price_history(history: PriceHistory) -> str:
     )
 
 
+def format_fundamental_dataset(dataset: FundamentalDataset) -> str:
+    """Render bounded fundamental evidence compactly for model context."""
+    heading = dataset.dataset.replace("_", " ").title()
+    lines = [
+        f"{dataset.symbol} — {heading}",
+        f"Records: {len(dataset.records)}",
+    ]
+    for record in dataset.records:
+        if dataset.dataset == "company_news":
+            lines.append(
+                f"- {record.get('published_at') or 'Undated'} | "
+                f"{record.get('publisher') or 'Unknown publisher'} | "
+                f"{record.get('title') or 'Untitled'} | {record.get('url') or 'No URL'}"
+            )
+        elif dataset.dataset == "sec_filings":
+            lines.append(
+                f"- {record.get('filed_at') or 'Undated'} | "
+                f"{record.get('form') or 'Unknown form'} | "
+                f"{record.get('title') or 'Untitled'} | {record.get('url') or 'No URL'}"
+            )
+        else:
+            lines.append(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
+    lines.extend(
+        (
+            f"Source: {dataset.provider}",
+            f"Retrieved: {dataset.retrieved_at.isoformat()}",
+            "Note: provider data may be delayed, revised, or incomplete.",
+        )
+    )
+    return "\n".join(lines)
+
+
+def _dataset_artifact(dataset: FundamentalDataset) -> dict[str, object]:
+    return {
+        "artifact_type": dataset.dataset,
+        "schema_version": 1,
+        "status": "ok",
+        "data": dataset.to_dict(),
+    }
+
+
+def _error_artifact(
+    artifact_type: str, error: FinancialDataError
+) -> tuple[str, dict[str, object]]:
+    return (
+        str(error),
+        {
+            "artifact_type": artifact_type,
+            "schema_version": 1,
+            "status": "error",
+            "error": str(error),
+        },
+    )
+
+
 def create_company_overview_tool(
     service: CompanyResearchService,
 ) -> BaseTool:
@@ -235,15 +292,143 @@ def create_price_history_tool(service: CompanyResearchService) -> BaseTool:
     return get_price_history
 
 
+def create_financial_statements_tool(service: CompanyResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def get_financial_statements(
+        symbol: str, frequency: str = "yearly"
+    ) -> tuple[str, dict[str, object]]:
+        """Get up to four annual/yearly or quarter/quarterly statement periods."""
+        try:
+            data = await service.get_financial_statements(symbol, frequency=frequency)
+        except FinancialDataError as error:
+            return _error_artifact("financial_statements", error)
+        return format_fundamental_dataset(data), _dataset_artifact(data)
+
+    return get_financial_statements
+
+
+def create_fundamental_ratios_tool(service: CompanyResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def get_fundamental_ratios(
+        symbol: str,
+    ) -> tuple[str, dict[str, object]]:
+        """Get valuation, profitability, return, liquidity, and leverage ratios."""
+        try:
+            data = await service.get_fundamental_ratios(symbol)
+        except FinancialDataError as error:
+            return _error_artifact("fundamental_ratios", error)
+        return format_fundamental_dataset(data), _dataset_artifact(data)
+
+    return get_fundamental_ratios
+
+
+def create_analyst_estimates_tool(service: CompanyResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def get_analyst_estimates(
+        symbol: str,
+    ) -> tuple[str, dict[str, object]]:
+        """Get analyst EPS, revenue, growth, and price-target estimates."""
+        try:
+            data = await service.get_analyst_estimates(symbol)
+        except FinancialDataError as error:
+            return _error_artifact("analyst_estimates", error)
+        return format_fundamental_dataset(data), _dataset_artifact(data)
+
+    return get_analyst_estimates
+
+
+def create_sec_filings_tool(service: CompanyResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def get_sec_filings(
+        symbol: str, limit: int = 10
+    ) -> tuple[str, dict[str, object]]:
+        """Get recent SEC filing metadata with direct EDGAR document links."""
+        try:
+            data = await service.get_sec_filings(symbol, limit=limit)
+        except FinancialDataError as error:
+            return _error_artifact("sec_filings", error)
+        return format_fundamental_dataset(data), _dataset_artifact(data)
+
+    return get_sec_filings
+
+
+def create_ownership_tool(service: CompanyResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def get_ownership(
+        symbol: str, limit: int = 10
+    ) -> tuple[str, dict[str, object]]:
+        """Get aggregate ownership and leading institutional holders."""
+        try:
+            data = await service.get_ownership(symbol, limit=limit)
+        except FinancialDataError as error:
+            return _error_artifact("ownership", error)
+        return format_fundamental_dataset(data), _dataset_artifact(data)
+
+    return get_ownership
+
+
+def create_insider_activity_tool(service: CompanyResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def get_insider_activity(
+        symbol: str, limit: int = 10
+    ) -> tuple[str, dict[str, object]]:
+        """Get recent reported insider transactions and source links."""
+        try:
+            data = await service.get_insider_activity(symbol, limit=limit)
+        except FinancialDataError as error:
+            return _error_artifact("insider_activity", error)
+        return format_fundamental_dataset(data), _dataset_artifact(data)
+
+    return get_insider_activity
+
+
+def create_company_news_tool(service: CompanyResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def get_company_news(
+        symbol: str, limit: int = 8
+    ) -> tuple[str, dict[str, object]]:
+        """Get recent company headlines, publishers, timestamps, and links."""
+        try:
+            data = await service.get_company_news(symbol, limit=limit)
+        except FinancialDataError as error:
+            return _error_artifact("company_news", error)
+        return format_fundamental_dataset(data), _dataset_artifact(data)
+
+    return get_company_news
+
+
+def create_company_comparison_tool(service: CompanyResearchService) -> BaseTool:
+    @tool(response_format="content_and_artifact")
+    async def compare_companies(
+        symbols: list[str],
+    ) -> tuple[str, dict[str, object]]:
+        """Compare normalized overview metrics for 2 to 5 public tickers."""
+        try:
+            data = await service.compare_companies(symbols)
+        except FinancialDataError as error:
+            return _error_artifact("company_comparison", error)
+        return format_fundamental_dataset(data), _dataset_artifact(data)
+
+    return compare_companies
+
+
 def create_default_tools() -> Sequence[BaseTool]:
     """Compose the production tools and their dependencies.
 
     Returns:
-        Sequence containing the Yahoo-backed company overview tool.
+        Complete Yahoo-backed overview, price, and fundamental toolset.
     """
     provider = YahooFinanceProvider()
     service = CompanyResearchService(provider)
     return [
         create_company_overview_tool(service),
         create_price_history_tool(service),
+        create_financial_statements_tool(service),
+        create_fundamental_ratios_tool(service),
+        create_analyst_estimates_tool(service),
+        create_sec_filings_tool(service),
+        create_ownership_tool(service),
+        create_insider_activity_tool(service),
+        create_company_news_tool(service),
+        create_company_comparison_tool(service),
     ]

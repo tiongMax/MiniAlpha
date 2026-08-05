@@ -15,7 +15,7 @@ function transcriptToChat(turns: ThreadTurn[]): ChatTurn[] {
     tools: turn.tool_calls.map((tool, index) => ({
       ...tool,
       tool_call_id: `${turn.run_id}-stored-${index}`,
-      status: turn.status === 'completed' ? 'ok' : undefined,
+      status: tool.status ?? (turn.status === 'completed' ? 'ok' : undefined),
     })),
     artifacts: turn.artifacts,
     error: turn.status === 'cancelled' ? undefined : turn.error?.message,
