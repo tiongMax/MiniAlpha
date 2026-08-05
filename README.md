@@ -4,10 +4,10 @@ MiniAlpha is a learning project that rebuilds the core research loop behind
 LangAlpha with an explicit LangGraph instead of
 `langchain.agents.create_agent`.
 
-## Phase 7 + Phase 13 reliability slice
+## Phase 8 reconnectable run events
 
-Phase 7 supports independent research requests, durable conversations, a
-stable live event stream, detached execution, and explicit cancellation:
+Phase 8 supports independent research requests, durable conversations,
+detached execution, explicit cancellation, and reconnectable live events:
 
 ```text
 HTTP client
@@ -18,7 +18,7 @@ HTTP client
        -> ResearchAgentService -> explicit LangGraph
                                   -> PostgreSQL checkpoints
                                   -> company research tool -> Yahoo Finance
-                                  -> application event translator -> SSE
+                                  -> application event translator -> Redis Streams -> SSE
 ```
 
 Phase 4 introduced application-owned records for threads, queries, runs, and
@@ -29,17 +29,17 @@ LangGraph events.
 This follows LangAlpha's important persistence boundary at learning scale:
 the application database owns request identity, run lifecycle, transcripts,
 and the published checkpoint pointer; LangGraph owns serialized graph state.
-MiniAlpha does not yet copy LangAlpha's Redis replay, multi-worker
-coordination, authentication, workspaces, sandboxing, MCP, PTC, or subagent
-infrastructure.
+Redis is live transport rather than lifecycle truth. MiniAlpha does not yet
+copy LangAlpha's multi-worker coordination, authentication, workspaces,
+sandboxing, MCP, PTC, or subagent infrastructure.
 
-A small React frontend now consumes the Phase 7 API so the agent can be tested
+A small React frontend now consumes the Phase 8 API so the agent can be tested
 interactively. It provides a durable thread list, transcript loading, streaming
 assistant text, tool progress, and structured artifact inspection. TanStack
 React Query caches committed thread/transcript server state; provisional SSE
 events remain in a local reducer until the completed transcript is refetched.
-The Stop control performs durable server-side cancellation. Redis-backed
-reconnect remains intentionally absent until Phase 8.
+The Stop control performs durable server-side cancellation. Interrupted event
+requests reconnect with `Last-Event-ID` and do not duplicate reduced events.
 
 The original stateless endpoint remains available. Each call to it starts with
 fresh graph state.
@@ -52,6 +52,7 @@ Copy `.env.example` to `.env`, then set:
 GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-2.5-flash
 DATABASE_URL=postgresql://minialpha:minialpha@localhost:5433/minialpha
+REDIS_URL=redis://localhost:6379/0
 ```
 
 Install dependencies:
@@ -60,10 +61,10 @@ Install dependencies:
 uv sync
 ```
 
-Start PostgreSQL and initialize the schema:
+Start PostgreSQL and Redis, then initialize the schema:
 
 ```powershell
-docker compose up -d postgres
+docker compose up -d postgres redis
 uv run python -m scripts.setup_database
 ```
 
@@ -114,7 +115,7 @@ Invoke-RestMethod http://127.0.0.1:8000/ready
 ```
 
 `/health` only proves the HTTP process is alive. `/ready` also verifies model
-composition and PostgreSQL persistence.
+composition, PostgreSQL persistence, and Redis connectivity.
 
 ## Durable research
 
@@ -161,9 +162,11 @@ The stream emits `metadata`, `message_chunk`, `tool_call`, `tool_result`,
 `artifact`, `error`, and `run_end`. `metadata` is first and `run_end` is last.
 A successful or cancelled `run_end` is emitted only after the terminal
 PostgreSQL commit. Browser disconnects detach from SSE without cancelling the
-background run. Events remain process-local in Phase 7; durable reconnectable
-replay is Phase 8 work. The older `/messages/stream` endpoints remain available
-as compatibility wrappers around detached execution.
+background run. Events are retained in one Redis Stream per `run_id`; reconnect
+with `Last-Event-ID` to replay only later events. Idle streams send SSE comment
+keepalives, and keys expire after `RUN_EVENT_RETENTION_SECONDS` (one day by
+default). The older `/messages/stream` endpoints remain available as
+compatibility wrappers around detached execution.
 
 On startup, the worker marks runs left `in_progress` by an earlier process as
 `error` with `process_interrupted`. Shutdown drains accepted work for
@@ -245,6 +248,7 @@ app/services/company_research.py provider-neutral financial-data orchestration
 app/services/research_agent.py   transport-neutral graph execution
 app/services/thread_research.py  durable admission, execution, and finalization
 app/services/run_manager.py      detached worker, event attachment, cancellation
+app/events/store.py              Redis Streams replay and test event transport
 migrations/                      application-owned PostgreSQL schema
 scripts/setup_database.py        Alembic and LangGraph checkpoint initialization
 scripts/run_api.py               psycopg-compatible API launcher
@@ -260,3 +264,4 @@ cli.py                           interactive stateless trace runner
 - [Phase 4–5 API guide](docs/phase-4-5-api.md)
 - [Frontend architecture and run guide](docs/frontend.md)
 - [Phase 7 API and lifecycle guide](docs/phase-7-api.md)
+- [Phase 8 Redis reconnect guide](docs/phase-8-api.md)

@@ -43,16 +43,16 @@ transcript and replaces that provisional state with the authoritative response.
 Query keys live in `src/lib/queryKeys.ts`, following LangAlpha's centralized
 key-factory pattern.
 
-## Deliberately omitted
+## Reconnect behavior
 
-LangAlpha also includes authentication, workspaces, dashboards, market
-WebSockets, file panels, subagents, human approval, and durable reconnect
-readers. MiniAlpha does not need those to test its current agent.
+The backend owns execution after admission, so disconnecting the browser does
+not cancel the run. The client remembers the greatest application `event_id`
+it reduced and reconnects the GET request with `Last-Event-ID`. Redis replays
+only later events. The Stop action calls the server cancellation endpoint and
+waits for a durable `cancelled` terminal event.
 
-The Phase 7 backend owns execution after admission, so disconnecting the browser
-does not cancel the run. The Stop action calls the server cancellation endpoint
-and waits for a durable `cancelled` terminal event. Reconnection state across API
-process restarts will be added with Phase 8's Redis event IDs and replay path.
+Authentication, workspaces, dashboards, market WebSockets, file panels,
+subagents, and human approval remain deliberately omitted.
 
 ## Run locally
 

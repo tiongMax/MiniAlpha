@@ -7,6 +7,8 @@ from uuid import uuid4
 from httpx import ASGITransport, AsyncClient
 
 from app.api.main import create_app
+from app.events.models import RunEventProducer
+from app.events.store import InMemoryRunEventStore
 from app.persistence.memory import InMemoryConversationRepository
 from app.services.research_agent import (
     AgentStreamComplete,
@@ -122,6 +124,39 @@ def test_startup_recovers_abandoned_in_progress_runs() -> None:
     assert stored.run.error_code == "process_interrupted"
 
 
+def test_reconnect_after_process_interruption_gets_terminal_event() -> None:
+    """A replacement manager seals a retained stream after startup recovery."""
+
+    async def exercise():
+        repository = InMemoryConversationRepository()
+        event_store = InMemoryRunEventStore()
+        abandoned = await repository.admit_run(
+            thread_id=None,
+            message="Analyze Apple.",
+            request_key=uuid4(),
+        )
+        producer = RunEventProducer(
+            run_id=abandoned.run.run_id,
+            thread_id=abandoned.run.thread_id,
+        )
+        await event_store.publish(producer.emit("metadata", {"turn_index": 1}))
+        manager = DetachedRunManager(
+            ThreadResearchService(repository, ControlledAgent()),
+            event_store=event_store,
+        )
+        await manager.start()
+        events = [event async for event in manager.events(abandoned.run.run_id)]
+        await manager.close()
+        return events
+
+    events = asyncio.run(exercise())
+    assert [event.event for event in events] == ["metadata", "run_end"]
+    assert events[-1].data == {
+        "status": "error",
+        "error_code": "process_interrupted",
+    }
+
+
 def test_shutdown_interrupts_work_after_grace_period() -> None:
     """Process shutdown cancels and terminalizes work that will not drain."""
 
@@ -228,3 +263,48 @@ def test_detached_http_admission_and_cancellation_contract() -> None:
         "run_end",
     ]
     assert events[-1]["data"] == {"status": "cancelled"}
+
+
+def test_event_endpoint_resumes_after_last_event_id() -> None:
+    """A new attachment receives only events after its acknowledged cursor."""
+
+    async def exercise():
+        repository = InMemoryConversationRepository()
+        agent = ControlledAgent()
+        event_store = InMemoryRunEventStore()
+        app = create_app(
+            research_service(SuccessfulGraph()),
+            ThreadResearchService(repository, agent),
+            event_store,
+        )
+        transport = ASGITransport(app=app)
+        async with app.router.lifespan_context(app):
+            async with AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                admitted = await client.post(
+                    "/api/v1/threads/runs",
+                    json={
+                        "messages": [{"role": "user", "content": "Analyze Apple."}],
+                        "request_key": str(uuid4()),
+                    },
+                )
+                await agent.started.wait()
+                agent.release.set()
+                await app.state.run_manager._queue.join()
+                streamed = await client.get(
+                    admitted.json()["events_url"],
+                    headers={"Last-Event-ID": "1"},
+                )
+        return streamed
+
+    streamed = asyncio.run(exercise())
+    events = [
+        json.loads(line.removeprefix("data: "))
+        for line in streamed.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert streamed.status_code == 200
+    assert [event["event_id"] for event in events] == [2, 3]
+    assert [event["event"] for event in events] == ["message_chunk", "run_end"]

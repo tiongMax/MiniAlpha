@@ -1,10 +1,9 @@
 """Detached run admission, event attachment, and cancellation routes."""
 
-from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, status
 from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import get_run_manager
@@ -14,7 +13,8 @@ from app.api.schemas import (
     RunCancellationResponse,
     ThreadMessageRequest,
 )
-from app.api.sse import SSE_HEADERS, encode_sse
+from app.api.sse import SSE_HEADERS, encode_sse_stream
+from app.config import get_timeout_seconds
 from app.services.run_manager import DetachedRunManager, RunSubmission
 
 router = APIRouter(prefix="/api/v1", tags=["runs"])
@@ -87,18 +87,17 @@ async def continue_thread_run(
 async def attach_run_events(
     run_id: UUID,
     manager: RunManager,
+    last_event_id: Annotated[int, Header(alias="Last-Event-ID", ge=0)] = 0,
 ) -> StreamingResponse:
-    """Attach to buffered and future events without owning execution."""
-    iterator = manager.events(run_id)
-    first = await anext(iterator)
-
-    async def frames() -> AsyncIterator[str]:
-        yield encode_sse(first)
-        async for event in iterator:
-            yield encode_sse(event)
+    """Replay after Last-Event-ID, then follow without owning execution."""
+    await manager.ensure_events_available(run_id)
+    iterator = manager.events(run_id, after_event_id=last_event_id)
 
     return StreamingResponse(
-        frames(),
+        encode_sse_stream(
+            iterator,
+            keepalive_seconds=get_timeout_seconds("SSE_KEEPALIVE_SECONDS", 15),
+        ),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
     )

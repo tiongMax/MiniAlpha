@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 
 from app.api.dependencies import (
     ResearchServiceUnavailableError,
+    RunManagerUnavailableError,
     ThreadServiceUnavailableError,
 )
 from app.api.schemas import ErrorResponse, ReadinessResponse
@@ -31,6 +32,9 @@ async def readiness(request: Request) -> ReadinessResponse:
         raise ThreadServiceUnavailableError(
             "Persistent thread research is unavailable."
         )
+    event_store = getattr(request.app.state, "event_store", None)
+    if event_store is None or not await event_store.is_ready():
+        raise RunManagerUnavailableError("Redis event transport is unavailable.")
 
     runtime = getattr(request.app.state, "persistence_runtime", None)
     if isinstance(runtime, PersistenceRuntime) and not await runtime.is_ready():
@@ -40,6 +44,6 @@ async def readiness(request: Request) -> ReadinessResponse:
     return ReadinessResponse(
         status="ready",
         service="mini-alpha",
-        phase=7,
+        phase=8,
         persistence="ready",
     )

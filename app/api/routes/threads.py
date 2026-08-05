@@ -20,7 +20,8 @@ from app.api.schemas import (
     ThreadTurnResponse,
     ToolCallResponse,
 )
-from app.api.sse import SSE_HEADERS, encode_sse
+from app.api.sse import SSE_HEADERS, encode_sse_stream
+from app.config import get_timeout_seconds
 from app.persistence.models import ConversationThread, ConversationTurn
 from app.services.run_manager import DetachedRunManager
 from app.services.thread_research import ThreadResearchResult, ThreadResearchService
@@ -150,8 +151,11 @@ async def _stream_response(
     )
 
     async def frames() -> AsyncIterator[str]:
-        async for event in manager.events(submission.run_id):
-            yield encode_sse(event)
+        async for frame in encode_sse_stream(
+            manager.events(submission.run_id),
+            keepalive_seconds=get_timeout_seconds("SSE_KEEPALIVE_SECONDS", 15),
+        ):
+            yield frame
 
     actual_thread_id = submission.thread_id
     headers = {

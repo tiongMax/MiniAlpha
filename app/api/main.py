@@ -20,7 +20,16 @@ from app.api.routes.readiness import router as readiness_router
 from app.api.routes.research import router as research_router
 from app.api.routes.runs import router as runs_router
 from app.api.routes.threads import router as threads_router
-from app.config import get_timeout_seconds
+from app.config import (
+    get_positive_int,
+    get_redis_url,
+    get_timeout_seconds,
+)
+from app.events.store import (
+    InMemoryRunEventStore,
+    RedisRunEventStore,
+    RunEventStore,
+)
 from app.services.research_agent import ResearchAgentService
 from app.services.run_manager import DetachedRunManager
 from app.services.thread_research import ThreadResearchService
@@ -31,6 +40,7 @@ logger = logging.getLogger(__name__)
 def create_app(
     research_service: ResearchAgentService | None = None,
     thread_research_service: ThreadResearchService | None = None,
+    event_store: RunEventStore | None = None,
 ) -> FastAPI:
     """Create the API with an injectable or production research service."""
 
@@ -38,6 +48,7 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         """Compose production dependencies once while preserving liveness."""
         owned_runtime = None
+        owned_event_store = None
         run_manager = None
         if research_service is not None:
             app.state.research_service = research_service
@@ -65,27 +76,51 @@ def create_app(
                 app.state.persistence_runtime = None
                 app.state.persistence_startup_failed = True
         if app.state.thread_research_service is not None:
-            run_manager = DetachedRunManager(
-                app.state.thread_research_service,
-                shutdown_grace_seconds=get_timeout_seconds(
-                    "WORKER_SHUTDOWN_GRACE_SECONDS", 10
-                ),
-            )
-            await run_manager.start()
-            app.state.run_manager = run_manager
+            if event_store is not None:
+                app.state.event_store = event_store
+            elif research_service is not None:
+                app.state.event_store = InMemoryRunEventStore()
+            else:
+                try:
+                    owned_event_store = await RedisRunEventStore.open(
+                        get_redis_url(),
+                        retention_seconds=get_positive_int(
+                            "RUN_EVENT_RETENTION_SECONDS", 86_400
+                        ),
+                    )
+                    app.state.event_store = owned_event_store
+                except Exception:
+                    logger.exception("Redis event transport composition failed")
+                    app.state.event_store = None
+            if app.state.event_store is None:
+                app.state.run_manager = None
+                run_manager = None
+            else:
+                run_manager = DetachedRunManager(
+                    app.state.thread_research_service,
+                    event_store=app.state.event_store,
+                    shutdown_grace_seconds=get_timeout_seconds(
+                        "WORKER_SHUTDOWN_GRACE_SECONDS", 10
+                    ),
+                )
+                await run_manager.start()
+                app.state.run_manager = run_manager
         else:
+            app.state.event_store = None
             app.state.run_manager = None
         try:
             yield
         finally:
             if run_manager is not None:
                 await run_manager.close()
+            if owned_event_store is not None:
+                await owned_event_store.close()
             if owned_runtime is not None:
                 await owned_runtime.close()
 
     api = FastAPI(
         title="MiniAlpha API",
-        version="0.7.0",
+        version="0.8.0",
         description=(
             "HTTP access to MiniAlpha's explicit LangGraph financial research "
             "agent. Use the stateless research route for independent requests "

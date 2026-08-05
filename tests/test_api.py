@@ -29,7 +29,7 @@ def test_health_is_independent_of_external_services() -> None:
     assert response.json() == {
         "status": "ok",
         "service": "mini-alpha",
-        "phase": 7,
+        "phase": 8,
     }
 
 
@@ -41,7 +41,7 @@ def test_openapi_describes_phase_six_routes() -> None:
 
     assert response.status_code == 200
     schema = response.json()
-    assert schema["info"]["version"] == "0.7.0"
+    assert schema["info"]["version"] == "0.8.0"
     assert "durable thread routes" in schema["info"]["description"]
     assert set(schema["paths"]) >= {
         "/health",
@@ -101,7 +101,7 @@ def test_readiness_requires_persistent_composition() -> None:
     assert ready_response.json() == {
         "status": "ready",
         "service": "mini-alpha",
-        "phase": 7,
+        "phase": 8,
         "persistence": "ready",
     }
 

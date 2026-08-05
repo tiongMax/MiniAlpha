@@ -68,8 +68,8 @@ function ThreadSidebar({
         {!visible.length && <p className="empty-list">No saved threads yet.</p>}
       </nav>
       <div className="phase-note">
-        <span>Phase 7 execution</span>
-        Detached runs · server cancellation
+        <span>Phase 8 execution</span>
+        Detached runs · Redis reconnect
       </div>
     </aside>
   )
