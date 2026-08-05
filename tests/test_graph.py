@@ -14,6 +14,7 @@ from langchain_core.runnables import RunnableLambda
 
 from app.agent.graph import build_graph
 from app.agent.tools import create_company_overview_tool
+from app.services.research_agent import ResearchAgentService, ResearchExecutionError
 from tests.test_tools import SuccessfulService
 
 
@@ -89,3 +90,74 @@ def test_graph_executes_tool_then_returns_final_answer() -> None:
     assert isinstance(messages[3], AIMessage)
     assert messages[3].content == "Apple has a 31.7% operating margin."
     assert not any(isinstance(message, SystemMessage) for message in messages)
+
+
+class SlowModel:
+    """Model double that exceeds a short execution deadline."""
+
+    def bind_tools(self, _tools):
+        async def respond(_messages):
+            await asyncio.sleep(1)
+            return AIMessage(content="Too late.")
+
+        return RunnableLambda(respond)
+
+
+def test_model_invocation_timeout_is_controlled() -> None:
+    graph = build_graph(
+        cast(BaseChatModel, SlowModel()),
+        tools=[],
+        model_timeout_seconds=0.001,
+    )
+
+    try:
+        asyncio.run(ResearchAgentService(graph).research("Analyze Apple."))
+    except ResearchExecutionError as error:
+        assert error.code == "model_timeout"
+    else:
+        raise AssertionError("Expected ResearchExecutionError")
+
+
+class ToolCallingModel:
+    """Model double that requests one deliberately slow tool."""
+
+    def bind_tools(self, _tools):
+        async def respond(messages):
+            if isinstance(messages[-1], ToolMessage):
+                return AIMessage(content="Done.")
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "slow-call",
+                        "name": "slow_tool",
+                        "args": {},
+                        "type": "tool_call",
+                    }
+                ],
+            )
+
+        return RunnableLambda(respond)
+
+
+def test_tool_invocation_timeout_is_controlled() -> None:
+    from langchain_core.tools import tool
+
+    @tool
+    async def slow_tool() -> str:
+        """Wait long enough to exceed the test deadline."""
+        await asyncio.sleep(1)
+        return "Too late."
+
+    graph = build_graph(
+        cast(BaseChatModel, ToolCallingModel()),
+        tools=[slow_tool],
+        tool_timeout_seconds=0.001,
+    )
+
+    try:
+        asyncio.run(ResearchAgentService(graph).research("Analyze Apple."))
+    except ResearchExecutionError as error:
+        assert error.code == "tool_timeout"
+    else:
+        raise AssertionError("Expected ResearchExecutionError")

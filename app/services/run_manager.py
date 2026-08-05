@@ -48,10 +48,15 @@ class _RunChannel:
                 self.terminal = True
             self.changed.notify_all()
 
-    async def publish_cancelled(self) -> None:
+    async def publish_terminal(
+        self, status: str, error_code: str | None = None
+    ) -> None:
         async with self.changed:
             if self.terminal:
                 return
+            data: dict[str, object] = {"status": status}
+            if error_code is not None:
+                data["error_code"] = error_code
             self.events.append(
                 RunEvent(
                     event_id=len(self.events) + 1,
@@ -59,7 +64,7 @@ class _RunChannel:
                     run_id=self.run.run_id,
                     thread_id=self.run.thread_id,
                     timestamp=datetime.now(UTC),
-                    data={"status": "cancelled"},
+                    data=data,
                 )
             )
             self.terminal = True
@@ -95,23 +100,44 @@ class _RunChannel:
 class DetachedRunManager:
     """Own one background worker independently of HTTP connections."""
 
-    def __init__(self, service: ThreadResearchService) -> None:
+    def __init__(
+        self,
+        service: ThreadResearchService,
+        *,
+        shutdown_grace_seconds: float = 10.0,
+    ) -> None:
         self._service = service
+        self._shutdown_grace_seconds = shutdown_grace_seconds
         self._channels: dict[UUID, _RunChannel] = {}
         self._queue: asyncio.Queue[ThreadResearchStream | None] = asyncio.Queue()
         self._worker: asyncio.Task[None] | None = None
+        self._accepting = False
 
     async def start(self) -> None:
         """Start the single process-local execution worker."""
         if self._worker is None:
+            await self._service.recover_abandoned_runs()
+            self._accepting = True
             self._worker = asyncio.create_task(self._work(), name="mini-alpha-runs")
 
     async def close(self) -> None:
         """Drain accepted work and stop the process-local worker."""
         if self._worker is None:
             return
+        self._accepting = False
         await self._queue.put(None)
-        await self._worker
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(self._worker),
+                timeout=self._shutdown_grace_seconds,
+            )
+        except TimeoutError:
+            self._worker.cancel()
+            try:
+                await self._worker
+            except asyncio.CancelledError:
+                pass
+            await self._interrupt_open_channels()
         self._worker = None
 
     async def submit(
@@ -122,6 +148,8 @@ class DetachedRunManager:
         request_key: UUID | None,
     ) -> RunSubmission:
         """Durably admit a run, enqueue it, and return without executing it."""
+        if not self._accepting:
+            raise RuntimeError("The run worker is not accepting new work.")
         try:
             prepared = await self._service.prepare_stream(
                 message,
@@ -213,7 +241,7 @@ class DetachedRunManager:
             artifacts=artifacts,
         )
         channel.run = cancelled
-        await channel.publish_cancelled()
+        await channel.publish_terminal("cancelled")
         return cancelled
 
     async def _work(self) -> None:
@@ -230,7 +258,10 @@ class DetachedRunManager:
                 try:
                     await execution
                 except asyncio.CancelledError:
-                    pass
+                    if asyncio.current_task().cancelling():
+                        if not execution.done():
+                            execution.cancel()
+                        raise
                 finally:
                     channel.execution = None
             finally:
@@ -251,7 +282,30 @@ class DetachedRunManager:
             # indicates an unexpected worker failure; preserve durable truth.
             if not channel.terminal:
                 try:
-                    await self._service.cancel_run(channel.run.run_id)
+                    failed = await self._service.fail_run(
+                        channel.run.run_id,
+                        error_code="worker_failed",
+                        error_message="The run worker stopped unexpectedly.",
+                    )
+                    channel.run = failed
                 except RunLifecycleConflictError:
                     pass
-                await channel.publish_cancelled()
+                await channel.publish_terminal("error", "worker_failed")
+
+    async def _interrupt_open_channels(self) -> None:
+        """Durably fail accepted work that outlived the shutdown grace period."""
+        for channel in self._channels.values():
+            if channel.terminal:
+                continue
+            try:
+                failed = await self._service.fail_run(
+                    channel.run.run_id,
+                    error_code="process_interrupted",
+                    error_message=(
+                        "The worker process stopped before completing the run."
+                    ),
+                )
+                channel.run = failed
+            except RunLifecycleConflictError:
+                continue
+            await channel.publish_terminal("error", "process_interrupted")

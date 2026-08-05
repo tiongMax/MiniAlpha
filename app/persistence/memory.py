@@ -190,6 +190,33 @@ class InMemoryConversationRepository:
             )
             return failed
 
+    async def recover_abandoned_runs(self) -> int:
+        """Fail all active runs as work abandoned by an earlier process."""
+        async with self._lock:
+            run_ids = [
+                run_id
+                for run_id, run in self._runs.items()
+                if run.status == "in_progress"
+            ]
+            now = _now()
+            for run_id in run_ids:
+                run = self._runs[run_id]
+                self._runs[run_id] = replace(
+                    run,
+                    status="error",
+                    error_code="process_interrupted",
+                    error_message=(
+                        "The worker process stopped before completing the run."
+                    ),
+                    completed_at=now,
+                )
+                self._threads[run.thread_id] = replace(
+                    self._threads[run.thread_id],
+                    status="error",
+                    updated_at=now,
+                )
+            return len(run_ids)
+
     async def cancel_run(
         self,
         run_id: UUID,

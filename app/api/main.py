@@ -20,6 +20,7 @@ from app.api.routes.readiness import router as readiness_router
 from app.api.routes.research import router as research_router
 from app.api.routes.runs import router as runs_router
 from app.api.routes.threads import router as threads_router
+from app.config import get_timeout_seconds
 from app.services.research_agent import ResearchAgentService
 from app.services.run_manager import DetachedRunManager
 from app.services.thread_research import ThreadResearchService
@@ -64,7 +65,12 @@ def create_app(
                 app.state.persistence_runtime = None
                 app.state.persistence_startup_failed = True
         if app.state.thread_research_service is not None:
-            run_manager = DetachedRunManager(app.state.thread_research_service)
+            run_manager = DetachedRunManager(
+                app.state.thread_research_service,
+                shutdown_grace_seconds=get_timeout_seconds(
+                    "WORKER_SHUTDOWN_GRACE_SECONDS", 10
+                ),
+            )
             await run_manager.start()
             app.state.run_manager = run_manager
         else:

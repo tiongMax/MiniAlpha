@@ -79,6 +79,10 @@ class PostgresConversationRepository:
             error_message=error_message,
         )
 
+    async def recover_abandoned_runs(self) -> int:
+        """Fail runs left active by a previously terminated API process."""
+        return await self._lifecycle.recover_abandoned_runs()
+
     async def cancel_run(
         self,
         run_id: UUID,

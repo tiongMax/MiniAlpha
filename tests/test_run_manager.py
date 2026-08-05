@@ -71,6 +71,87 @@ def test_run_completes_without_an_attached_event_consumer() -> None:
     assert stored.run.answer == "Detached answer."
 
 
+def test_disconnect_does_not_cancel_background_execution() -> None:
+    """Closing one event attachment leaves application-owned work running."""
+
+    async def exercise():
+        repository = InMemoryConversationRepository()
+        agent = ControlledAgent()
+        manager = DetachedRunManager(ThreadResearchService(repository, agent))
+        await manager.start()
+        submission = await manager.submit(
+            "Analyze Apple.", thread_id=None, request_key=uuid4()
+        )
+        await agent.started.wait()
+        attachment = manager.events(submission.run_id)
+        first = await anext(attachment)
+        await attachment.aclose()
+        agent.release.set()
+        await manager._queue.join()
+        stored = await repository.get_turn(submission.run_id)
+        await manager.close()
+        return first, stored
+
+    first, stored = asyncio.run(exercise())
+    assert first.event == "metadata"
+    assert stored is not None
+    assert stored.run.status == "completed"
+
+
+def test_startup_recovers_abandoned_in_progress_runs() -> None:
+    """A new manager terminalizes durable work owned by a dead process."""
+
+    async def exercise():
+        repository = InMemoryConversationRepository()
+        abandoned = await repository.admit_run(
+            thread_id=None,
+            message="Analyze Apple.",
+            request_key=uuid4(),
+        )
+        manager = DetachedRunManager(
+            ThreadResearchService(repository, ControlledAgent())
+        )
+        await manager.start()
+        stored = await repository.get_turn(abandoned.run.run_id)
+        await manager.close()
+        return stored
+
+    stored = asyncio.run(exercise())
+    assert stored is not None
+    assert stored.run.status == "error"
+    assert stored.run.error_code == "process_interrupted"
+
+
+def test_shutdown_interrupts_work_after_grace_period() -> None:
+    """Process shutdown cancels and terminalizes work that will not drain."""
+
+    async def exercise():
+        repository = InMemoryConversationRepository()
+        agent = ControlledAgent()
+        manager = DetachedRunManager(
+            ThreadResearchService(repository, agent),
+            shutdown_grace_seconds=0.001,
+        )
+        await manager.start()
+        submission = await manager.submit(
+            "Analyze Apple.", thread_id=None, request_key=uuid4()
+        )
+        await agent.started.wait()
+        await manager.close()
+        stored = await repository.get_turn(submission.run_id)
+        events = [event async for event in manager.events(submission.run_id)]
+        return stored, events
+
+    stored, events = asyncio.run(exercise())
+    assert stored is not None
+    assert stored.run.status == "error"
+    assert stored.run.error_code == "process_interrupted"
+    assert events[-1].data == {
+        "status": "error",
+        "error_code": "process_interrupted",
+    }
+
+
 def test_cancellation_is_durable_and_ends_all_event_attachments() -> None:
     """Stop interrupts the graph and commits cancelled before run_end."""
 

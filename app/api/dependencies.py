@@ -5,7 +5,7 @@ from typing import cast
 from fastapi import Request
 
 from app.agent.graph import build_graph
-from app.config import create_model, get_database_url
+from app.config import create_model, get_database_url, get_timeout_seconds
 from app.persistence.runtime import PersistenceRuntime
 from app.services.research_agent import ResearchAgentService, ResearchGraph
 from app.services.run_manager import DetachedRunManager
@@ -26,7 +26,11 @@ class RunManagerUnavailableError(RuntimeError):
 
 def create_research_service() -> ResearchAgentService:
     """Compose the production model, tools, graph, and application service."""
-    graph = build_graph(create_model())
+    graph = build_graph(
+        create_model(),
+        model_timeout_seconds=get_timeout_seconds("MODEL_TIMEOUT_SECONDS", 60),
+        tool_timeout_seconds=get_timeout_seconds("TOOL_TIMEOUT_SECONDS", 30),
+    )
     return ResearchAgentService(cast(ResearchGraph, graph))
 
 
@@ -40,6 +44,8 @@ async def create_thread_research_service() -> tuple[
         graph = build_graph(
             create_model(),
             checkpointer=runtime.checkpointer,
+            model_timeout_seconds=get_timeout_seconds("MODEL_TIMEOUT_SECONDS", 60),
+            tool_timeout_seconds=get_timeout_seconds("TOOL_TIMEOUT_SECONDS", 30),
         )
         agent = ResearchAgentService(cast(ResearchGraph, graph))
         return ThreadResearchService(runtime.repository, agent), runtime

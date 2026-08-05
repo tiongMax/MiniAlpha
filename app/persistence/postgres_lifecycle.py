@@ -147,6 +147,36 @@ class PostgresRunLifecycle:
                         raise RunNotFoundError("The research run was not found.")
                     return failed
 
+    async def recover_abandoned_runs(self) -> int:
+        """Atomically fail every run abandoned by an earlier process."""
+        async with self._pool.connection() as connection:
+            async with connection.transaction():
+                async with connection.cursor() as cursor:
+                    await cursor.execute(
+                        """
+                        UPDATE conversation_responses
+                        SET status = 'error',
+                            error_code = 'process_interrupted',
+                            error_message =
+                                'The worker process stopped before completing the run.',
+                            completed_at = NOW()
+                        WHERE status = 'in_progress'
+                        RETURNING conversation_thread_id
+                        """
+                    )
+                    rows = await cursor.fetchall()
+                    thread_ids = [row["conversation_thread_id"] for row in rows]
+                    if thread_ids:
+                        await cursor.execute(
+                            """
+                            UPDATE conversation_threads
+                            SET current_status = 'error', updated_at = NOW()
+                            WHERE conversation_thread_id = ANY(%s)
+                            """,
+                            (thread_ids,),
+                        )
+                    return len(rows)
+
     async def cancel_run(
         self,
         run_id: UUID,

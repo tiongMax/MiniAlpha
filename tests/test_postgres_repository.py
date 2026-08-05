@@ -39,6 +39,7 @@ def test_postgres_repository_completes_and_replays_a_run() -> None:
         repository = PostgresConversationRepository(pool)
         thread_id = None
         cancelled_thread_id = None
+        abandoned_thread_id = None
         try:
             request_key = uuid4()
             admission = await repository.admit_run(
@@ -106,10 +107,26 @@ def test_postgres_repository_completes_and_replays_a_run() -> None:
             assert cancelled_turn.run.answer == "Microsoft partial analysis."
             assert cancelled_turn.run.tool_calls[0]["name"] == "get_company_overview"
             assert cancelled_turn.artifacts[0].data == {"symbol": "MSFT"}
+
+            abandoned = await repository.admit_run(
+                thread_id=None,
+                message="Analyze Nvidia.",
+                request_key=uuid4(),
+            )
+            abandoned_thread_id = abandoned.run.thread_id
+            assert await repository.recover_abandoned_runs() == 1
+            recovered = await repository.get_turn(abandoned.run.run_id)
+            assert recovered is not None
+            assert recovered.run.status == "error"
+            assert recovered.run.error_code == "process_interrupted"
         finally:
             cleanup_ids = [
                 candidate
-                for candidate in (thread_id, cancelled_thread_id)
+                for candidate in (
+                    thread_id,
+                    cancelled_thread_id,
+                    abandoned_thread_id,
+                )
                 if candidate is not None
             ]
             if cleanup_ids:
