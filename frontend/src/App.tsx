@@ -68,8 +68,8 @@ function ThreadSidebar({
         {!visible.length && <p className="empty-list">No saved threads yet.</p>}
       </nav>
       <div className="phase-note">
-        <span>Phase 6 transport</span>
-        Attached SSE · no reconnect yet
+        <span>Phase 7 execution</span>
+        Detached runs · server cancellation
       </div>
     </aside>
   )
@@ -118,7 +118,7 @@ function Turn({ turn }: { turn: ChatTurn }) {
           ) : turn.status === 'in_progress' ? (
             <div className="thinking"><i /><i /><i /><span>Researching</span></div>
           ) : null}
-          {turn.status === 'stopped' && <div className="inline-notice">Stream stopped locally. The Phase 6 server may also stop when the connection closes.</div>}
+          {turn.status === 'cancelled' && <div className="inline-notice">Research run cancelled.</div>}
           {turn.error && <div className="inline-error">{turn.error}</div>}
         </div>
       </div>
@@ -195,7 +195,7 @@ export default function App() {
               disabled={chat.streaming}
             />
             {chat.streaming ? (
-              <button type="button" className="running-button" disabled><Activity className="spin" size={17} /> Running</button>
+              <button type="button" className="running-button" onClick={() => void chat.stop()}><X size={17} /> Stop</button>
             ) : (
               <button type="submit" className="send-button" disabled={!input.trim()}><Sparkles size={17} /> Ask</button>
             )}

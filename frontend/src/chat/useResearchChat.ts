@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { listThreads, loadTranscript, streamMessage } from '../api/client'
+import { cancelRun, listThreads, loadTranscript, streamMessage } from '../api/client'
 import { queryKeys } from '../lib/queryKeys'
 import type { ChatTurn, ThreadTurn } from '../types'
 import { reduceRunEvent } from './events'
@@ -18,8 +18,25 @@ function transcriptToChat(turns: ThreadTurn[]): ChatTurn[] {
       status: turn.status === 'completed' ? 'ok' : undefined,
     })),
     artifacts: turn.artifacts,
-    error: turn.error?.message,
+    error: turn.status === 'cancelled' ? undefined : turn.error?.message,
   }))
+}
+
+function reconcileTranscript(
+  storedTurns: ThreadTurn[],
+  liveTurns: ChatTurn[],
+): ChatTurn[] {
+  return transcriptToChat(storedTurns).map((stored) => {
+    if (stored.status !== 'cancelled') return stored
+    const live = liveTurns.find((turn) => turn.id === stored.id)
+    if (!live) return stored
+    return {
+      ...stored,
+      assistant: live.assistant,
+      tools: live.tools,
+      artifacts: live.artifacts,
+    }
+  })
 }
 
 export function useResearchChat() {
@@ -29,7 +46,9 @@ export function useResearchChat() {
   const [streaming, setStreaming] = useState(false)
   const [streamError, setStreamError] = useState<string | null>(null)
   const activeStream = useRef<AbortController | null>(null)
+  const activeRunId = useRef<string | null>(null)
   const selectedThread = useRef<string | null>(null)
+  const turnCache = useRef(new Map<string, ChatTurn[]>())
 
   const threadListQuery = useQuery({
     queryKey: queryKeys.threads.list(),
@@ -47,9 +66,13 @@ export function useResearchChat() {
   }, [threadId])
 
   useEffect(() => {
+    if (threadId) turnCache.current.set(threadId, turns)
+  }, [threadId, turns])
+
+  useEffect(() => {
     const transcript = transcriptQuery.data
     if (transcript && transcript.thread_id === selectedThread.current && !streaming) {
-      setTurns(transcriptToChat(transcript.turns))
+      setTurns((current) => reconcileTranscript(transcript.turns, current))
     }
   }, [streaming, transcriptQuery.data])
 
@@ -62,7 +85,7 @@ export function useResearchChat() {
     if (activeStream.current) return
     selectedThread.current = nextThreadId
     setThreadId(nextThreadId)
-    setTurns([])
+    setTurns(turnCache.current.get(nextThreadId) ?? [])
     setStreamError(null)
   }, [])
 
@@ -101,6 +124,20 @@ export function useResearchChat() {
           message: cleanMessage,
           requestKey,
           signal: controller.signal,
+          onAccepted: (run) => {
+            activeRunId.current = run.run_id
+            if (!selectedThread.current) {
+              selectedThread.current = run.thread_id
+              setThreadId(run.thread_id)
+            }
+            setTurns((current) =>
+              current.map((turn) =>
+                turn.id === optimisticId
+                  ? { ...turn, id: run.run_id, turnIndex: run.turn_index }
+                  : turn,
+              ),
+            )
+          },
           onEvent: (event) => {
             if (!selectedThread.current) {
               selectedThread.current = event.thread_id
@@ -126,7 +163,7 @@ export function useResearchChat() {
               staleTime: 0,
             })
             if (selectedThread.current === completedThreadId) {
-              setTurns(transcriptToChat(transcript.turns))
+              setTurns((current) => reconcileTranscript(transcript.turns, current))
             }
           } catch {
             await queryClient.invalidateQueries({
@@ -139,7 +176,7 @@ export function useResearchChat() {
           setTurns((current) =>
             current.map((turn) =>
               turn.id === optimisticId || turn.status === 'in_progress'
-                ? { ...turn, status: 'stopped' }
+                ? { ...turn, status: 'error', error: 'The request was interrupted.' }
                 : turn,
             ),
           )
@@ -156,11 +193,26 @@ export function useResearchChat() {
         }
       } finally {
         if (activeStream.current === controller) activeStream.current = null
+        activeRunId.current = null
         setStreaming(false)
       }
     },
     [queryClient],
   )
+
+  const stop = useCallback(async () => {
+    const runId = activeRunId.current
+    if (!runId) {
+      activeStream.current?.abort()
+      return
+    }
+    try {
+      await cancelRun(runId)
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Cancellation failed.'
+      setStreamError(message)
+    }
+  }, [])
 
   const queryError = threadListQuery.error ?? transcriptQuery.error
   const error =
@@ -177,5 +229,6 @@ export function useResearchChat() {
     openThread,
     newThread,
     send,
+    stop,
   }
 }

@@ -1,4 +1,4 @@
-export type RunStatus = 'in_progress' | 'completed' | 'error'
+export type RunStatus = 'in_progress' | 'completed' | 'error' | 'cancelled'
 
 export interface ApiError {
   error?: { code?: string; message?: string }
@@ -73,12 +73,21 @@ export interface RunEvent {
   data: Record<string, unknown>
 }
 
+export interface RunAcceptedResponse {
+  run_id: string
+  thread_id: string
+  turn_index: number
+  status: RunStatus
+  replayed: boolean
+  events_url: string
+}
+
 export interface ChatTurn {
   id: string
   turnIndex?: number
   user: string
   assistant: string
-  status: RunStatus | 'stopped'
+  status: RunStatus
   tools: ToolCall[]
   artifacts: Artifact[]
   error?: string
