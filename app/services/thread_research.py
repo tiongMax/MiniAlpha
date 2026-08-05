@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 from uuid import UUID
 
 from app.events.models import RunEvent, RunEventProducer
@@ -153,13 +153,7 @@ class ThreadResearchService:
                 "The research agent completed without a readable checkpoint."
             )
 
-        tool_calls = [
-            {
-                "name": call.name,
-                "arguments": call.arguments,
-            }
-            for call in result.tool_calls
-        ]
+        tool_calls = [self._tool_call_payload(call) for call in result.tool_calls]
         try:
             turn = await self._repository.complete_run(
                 run.run_id,
@@ -256,8 +250,7 @@ class ThreadResearchService:
                 checkpoint_id=result.checkpoint_id,
                 answer=result.answer,
                 tool_calls=[
-                    {"name": call.name, "arguments": call.arguments}
-                    for call in result.tool_calls
+                    self._tool_call_payload(call) for call in result.tool_calls
                 ],
                 artifacts=result.artifacts,
             )
@@ -419,9 +412,31 @@ class ThreadResearchService:
                 ExecutedToolCall(
                     name=name,
                     arguments=cast(dict[str, object], arguments),
+                    status=(
+                        cast(Literal["ok", "error"], stored.get("status"))
+                        if stored.get("status") in {"ok", "error"}
+                        else None
+                    ),
+                    summary=(
+                        cast(str, stored.get("summary"))
+                        if isinstance(stored.get("summary"), str)
+                        else None
+                    ),
                 )
             )
         return tuple(calls)
+
+    @staticmethod
+    def _tool_call_payload(call: ExecutedToolCall) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "name": call.name,
+            "arguments": call.arguments,
+        }
+        if call.status is not None:
+            payload["status"] = call.status
+        if call.summary is not None:
+            payload["summary"] = call.summary
+        return payload
 
     @staticmethod
     def _artifact_envelope(artifact: StoredArtifact) -> dict[str, object]:

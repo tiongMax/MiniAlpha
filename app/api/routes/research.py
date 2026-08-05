@@ -42,7 +42,12 @@ async def research(
     return ResearchResponse(
         answer=result.answer,
         tool_calls=[
-            ToolCallResponse(name=call.name, arguments=call.arguments)
+            ToolCallResponse(
+                name=call.name,
+                arguments=call.arguments,
+                status=call.status,
+                summary=call.summary,
+            )
             for call in result.tool_calls
         ],
         artifacts=[

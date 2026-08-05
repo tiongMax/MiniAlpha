@@ -1,7 +1,7 @@
 """Synchronous and streaming durable thread message endpoints."""
 
 from collections.abc import AsyncIterator
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -52,7 +52,12 @@ def _message_response(result: ThreadResearchResult) -> ThreadMessageResponse:
         status="completed",
         answer=result.answer,
         tool_calls=[
-            ToolCallResponse(name=call.name, arguments=call.arguments)
+            ToolCallResponse(
+                name=call.name,
+                arguments=call.arguments,
+                status=call.status,
+                summary=call.summary,
+            )
             for call in result.tool_calls
         ],
         artifacts=[
@@ -75,6 +80,16 @@ def _stored_tool_call_response(
     return ToolCallResponse(
         name=str(call.get("name", "")),
         arguments=arguments,
+        status=(
+            cast(Literal["ok", "error"], call.get("status"))
+            if call.get("status") in {"ok", "error"}
+            else None
+        ),
+        summary=(
+            cast(str, call.get("summary"))
+            if isinstance(call.get("summary"), str)
+            else None
+        ),
     )
 
 
