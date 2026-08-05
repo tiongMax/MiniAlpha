@@ -4,7 +4,7 @@ MiniAlpha is a learning project that rebuilds the core research loop behind
 LangAlpha with an explicit LangGraph instead of
 `langchain.agents.create_agent`.
 
-## Phase 7 + frontend testing slice
+## Phase 7 + Phase 13 reliability slice
 
 Phase 7 supports independent research requests, durable conversations, a
 stable live event stream, detached execution, and explicit cancellation:
@@ -164,6 +164,13 @@ PostgreSQL commit. Browser disconnects detach from SSE without cancelling the
 background run. Events remain process-local in Phase 7; durable reconnectable
 replay is Phase 8 work. The older `/messages/stream` endpoints remain available
 as compatibility wrappers around detached execution.
+
+On startup, the worker marks runs left `in_progress` by an earlier process as
+`error` with `process_interrupted`. Shutdown drains accepted work for
+`WORKER_SHUTDOWN_GRACE_SECONDS`; work still running after that deadline is
+interrupted and terminalized with the same error code. Individual model and
+tool steps are bounded by `MODEL_TIMEOUT_SECONDS` and `TOOL_TIMEOUT_SECONDS`,
+which produce `model_timeout` and `tool_timeout` terminal errors respectively.
 
 Clients should generate one `request_key` UUID per logical request and reuse it
 when retrying that same request. A completed retry returns the stored result
