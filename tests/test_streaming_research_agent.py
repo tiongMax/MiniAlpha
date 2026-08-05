@@ -77,6 +77,40 @@ class StreamingGraph:
         )
 
 
+class BlockedStreamingGraph:
+    """Graph double that produces nothing until explicitly released."""
+
+    def __init__(self) -> None:
+        self.release = asyncio.Event()
+
+    async def astream(self, input, config=None, *, stream_mode):
+        await self.release.wait()
+        if False:
+            yield "values", input
+
+
+def test_planning_progress_precedes_slow_model_output() -> None:
+    """The client gets useful state before a model invocation can stall."""
+
+    async def exercise():
+        graph = BlockedStreamingGraph()
+        service = ResearchAgentService(cast(ResearchGraph, graph))
+        stream = service.stream_thread(
+            "Run broad research.",
+            thread_id=uuid4(),
+            run_id=uuid4(),
+            checkpoint_id=None,
+        )
+        first = await asyncio.wait_for(anext(stream), timeout=0.1)
+        await stream.aclose()
+        return first
+
+    first = asyncio.run(exercise())
+    assert isinstance(first, AgentStreamEvent)
+    assert first.event == "progress"
+    assert first.data["phase"] == "planning"
+
+
 def test_streams_stable_updates_and_terminal_result() -> None:
     """Verify graph internals are deduplicated and accumulated consistently."""
 
@@ -97,13 +131,21 @@ def test_streams_stable_updates_and_terminal_result() -> None:
     complete = next(item for item in items if isinstance(item, AgentStreamComplete))
 
     assert [event.event for event in events] == [
+        "progress",
+        "progress",
         "tool_call",
         "tool_result",
         "artifact",
+        "progress",
         "message_chunk",
         "message_chunk",
     ]
-    assert events[0].data["tool_call_id"] == "call-aapl"
-    assert events[1].data["tool_call_id"] == "call-aapl"
+    assert [event.data["phase"] for event in events if event.event == "progress"] == [
+        "planning",
+        "running_tools",
+        "synthesizing",
+    ]
+    assert events[2].data["tool_call_id"] == "call-aapl"
+    assert events[3].data["tool_call_id"] == "call-aapl"
     assert complete.result.answer == "Apple is profitable."
     assert complete.result.checkpoint_id == "checkpoint-streamed"

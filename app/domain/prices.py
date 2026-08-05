@@ -14,6 +14,7 @@ class PricePoint:
     low: float | None
     close: float
     volume: int | None
+    adjusted_close: float | None = None
 
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = asdict(self)

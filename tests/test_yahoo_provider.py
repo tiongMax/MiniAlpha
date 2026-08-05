@@ -1,7 +1,7 @@
 """Mapping tests for the Yahoo Finance adapter."""
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -53,11 +53,25 @@ class FakeHistory:
             (
                 (
                     FakeTimestamp(datetime(2026, 7, 1, tzinfo=UTC)),
-                    {"Open": 99, "High": 102, "Low": 98, "Close": 101, "Volume": 10},
+                    {
+                        "Open": 99,
+                        "High": 102,
+                        "Low": 98,
+                        "Close": 101,
+                        "Adj Close": 100.5,
+                        "Volume": 10,
+                    },
                 ),
                 (
                     FakeTimestamp(datetime(2026, 7, 2, tzinfo=UTC)),
-                    {"Open": 101, "High": 105, "Low": 100, "Close": 104, "Volume": 12},
+                    {
+                        "Open": 101,
+                        "High": 105,
+                        "Low": 100,
+                        "Close": 104,
+                        "Adj Close": 103.5,
+                        "Volume": 12,
+                    },
                 ),
             )
         )
@@ -165,4 +179,41 @@ def test_maps_price_history_to_chart_ready_points(monkeypatch) -> None:
     assert result.symbol == "TEST"
     assert result.currency == "USD"
     assert [point.close for point in result.points] == [101.0, 104.0]
+    assert [point.adjusted_close for point in result.points] == [100.5, 103.5]
+    assert result.points[0].timestamp == datetime(2026, 7, 1, tzinfo=UTC)
+
+
+def test_price_history_preserves_cross_market_session_date(monkeypatch) -> None:
+    """Daily timestamps retain Yahoo's session date across time zones."""
+
+    class OffsetHistory:
+        def iterrows(self):
+            return iter(
+                (
+                    (
+                        FakeTimestamp(
+                            datetime(
+                                2026,
+                                7,
+                                1,
+                                tzinfo=timezone(timedelta(hours=9)),
+                            )
+                        ),
+                        {"Close": 101, "Adj Close": 100.5},
+                    ),
+                )
+            )
+
+    monkeypatch.setattr(
+        "app.providers.yahoo.yf.Ticker",
+        lambda symbol: FakeTicker(
+            symbol,
+            info={},
+            fast_info={"currency": "JPY"},
+            history=OffsetHistory(),
+        ),
+    )
+
+    result = YahooFinanceProvider()._fetch_price_history("TEST", "1mo", "1d")
+
     assert result.points[0].timestamp == datetime(2026, 7, 1, tzinfo=UTC)

@@ -17,6 +17,10 @@ class InvalidFundamentalQueryError(FinancialDataError):
     """Raised when a fundamental dataset query exceeds supported bounds."""
 
 
+class InvalidQuantitativeQueryError(FinancialDataError):
+    """Raised when a quantitative calculation has unsafe or unusable inputs."""
+
+
 class SymbolNotFoundError(FinancialDataError):
     """Raised when a provider has no company data for a valid ticker."""
 

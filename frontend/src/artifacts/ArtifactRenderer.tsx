@@ -57,6 +57,19 @@ interface FundamentalDatasetData extends RecordValue {
   source_urls?: string[]
 }
 
+interface QuantitativeDatasetData extends RecordValue {
+  analysis: string
+  symbols: string[]
+  period: string
+  interval: string
+  parameters: RecordValue
+  summary: RecordValue
+  series: RecordValue[]
+  provider?: string
+  source_retrieved_at?: string
+  calculated_at?: string
+}
+
 const FUNDAMENTAL_ARTIFACTS = new Set([
   'financial_statements',
   'fundamental_ratios',
@@ -65,6 +78,15 @@ const FUNDAMENTAL_ARTIFACTS = new Set([
   'ownership',
   'insider_activity',
   'company_news',
+])
+
+const QUANTITATIVE_ARTIFACTS = new Set([
+  'return_statistics',
+  'volatility_analysis',
+  'drawdown_analysis',
+  'correlation_analysis',
+  'technical_indicators',
+  'moving_average_backtest',
 ])
 
 const compactNumber = new Intl.NumberFormat(undefined, {
@@ -105,6 +127,21 @@ function fundamentalData(artifact: Artifact): FundamentalDatasetData | null {
     ...data,
     records: data.records.filter(isRecord),
   } as FundamentalDatasetData
+}
+
+function quantitativeData(artifact: Artifact): QuantitativeDatasetData | null {
+  const data = artifact.data
+  if (
+    !QUANTITATIVE_ARTIFACTS.has(artifact.artifact_type) || !isRecord(data) ||
+    typeof data.analysis !== 'string' || !Array.isArray(data.symbols) ||
+    !data.symbols.every((symbol) => typeof symbol === 'string') ||
+    typeof data.period !== 'string' || typeof data.interval !== 'string' ||
+    !isRecord(data.parameters) || !isRecord(data.summary) || !Array.isArray(data.series)
+  ) return null
+  return {
+    ...data,
+    series: data.series.filter(isRecord),
+  } as QuantitativeDatasetData
 }
 
 function priceData(artifact: Artifact): PriceHistoryData | null {
@@ -261,11 +298,46 @@ function flattenRecord(record: RecordValue): RecordValue {
 function evidenceValue(value: unknown, key: string, currency?: string | null) {
   if (value === null || value === undefined) return '—'
   if (typeof value === 'number') {
-    if (/(margin|growth|yield|return_on|percent|debt_to_equity)/.test(key)) return percent(value)
+    if (/(margin|growth|yield|return|volatility|deviation|drawdown|fraction|exposure|percent|debt_to_equity)/.test(key)) return percent(value)
     return money(value, /(revenue|income|cash|debt|assets|liabilities|equity|value|target|expenditure|repurchase|dividend)/.test(key) ? currency : null)
   }
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
   return String(value)
+}
+
+function CorrelationTable({ data }: { data: QuantitativeDatasetData }) {
+  const raw = data.summary.correlations
+  if (!isRecord(raw)) return null
+  const symbols = data.symbols
+  return (
+    <div className="comparison-scroll"><table><thead><tr><th>Symbol</th>{symbols.map((symbol) => <th key={symbol}>{symbol}</th>)}</tr></thead><tbody>{symbols.map((left) => {
+      const row = isRecord(raw[left]) ? raw[left] : {}
+      return <tr key={left}><th>{left}</th>{symbols.map((right) => <td key={right}>{typeof row[right] === 'number' ? row[right].toFixed(3) : '—'}</td>)}</tr>
+    })}</tbody></table></div>
+  )
+}
+
+function QuantitativeCard({ data }: { data: QuantitativeDatasetData }) {
+  const metrics = Object.entries(data.summary).filter(([, value]) =>
+    value === null || ['string', 'number', 'boolean'].includes(typeof value),
+  )
+  const parameters = Object.entries(data.parameters)
+    .map(([key, value]) => `${key.replaceAll('_', ' ')}: ${String(value)}`)
+    .join(' · ')
+  return (
+    <section className="comparison-card">
+      <header className="artifact-header">
+        <span className="artifact-icon"><ChartNoAxesCombined size={17} /></span>
+        <div><strong>{data.analysis.replaceAll('_', ' ')}</strong><span>{data.symbols.join(', ')} · {data.period} · {data.interval}</span></div>
+      </header>
+      {data.analysis === 'correlation_analysis' && <CorrelationTable data={data} />}
+      {metrics.length > 0 && <div className="artifact-metrics">{metrics.map(([key, value]) =>
+        <Metric key={key} label={key.replaceAll('_', ' ')} value={evidenceValue(value, key)} />,
+      )}</div>}
+      {parameters && <div className="company-tags"><span>{parameters}</span></div>}
+      <footer className="artifact-source"><Database size={12} /> {sourceLine({ provider: data.provider, retrieved_at: data.calculated_at }) || 'Calculation metadata unavailable'} · {data.series.length} series observations</footer>
+    </section>
+  )
 }
 
 function FundamentalTable({ data }: { data: FundamentalDatasetData }) {
@@ -297,6 +369,8 @@ function ArtifactView({ artifact }: { artifact: Artifact }) {
   if (comparison) return <ComparisonTable companies={comparison.records} />
   const fundamentals = fundamentalData(artifact)
   if (fundamentals) return <FundamentalTable data={fundamentals} />
+  const quantitative = quantitativeData(artifact)
+  if (quantitative) return <QuantitativeCard data={quantitative} />
   return <FallbackArtifact artifact={artifact} />
 }
 

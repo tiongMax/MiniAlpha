@@ -7,6 +7,7 @@ from uuid import UUID
 
 EventName = Literal[
     "metadata",
+    "progress",
     "message_chunk",
     "tool_call",
     "tool_result",

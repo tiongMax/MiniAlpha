@@ -4,10 +4,10 @@ MiniAlpha is a learning project that rebuilds the core research loop behind
 LangAlpha with an explicit LangGraph instead of
 `langchain.agents.create_agent`.
 
-## Phase 11 fundamental research
+## Phase 12 deterministic quantitative research
 
-Phase 11 builds on the detached, reconnectable run lifecycle and structured
-artifacts with a broader fundamental-research toolset:
+Phase 12 builds on the detached, reconnectable run lifecycle, structured
+artifacts, and fundamental tools with deterministic market calculations:
 
 ```text
 HTTP client
@@ -17,7 +17,8 @@ HTTP client
        -> conversation repository -> PostgreSQL application tables
        -> ResearchAgentService -> explicit LangGraph
                                   -> PostgreSQL checkpoints
-                                  -> fundamental research tools -> Yahoo Finance
+                                  -> financial data tools -> Yahoo Finance
+                                  -> quantitative service -> application calculations
                                   -> application event translator -> Redis Streams -> SSE
   -> React artifact renderer -> company cards, charts, comparison tables
 ```
@@ -34,16 +35,22 @@ Redis is live transport rather than lifecycle truth. MiniAlpha does not yet
 copy LangAlpha's multi-worker coordination, authentication, workspaces,
 sandboxing, MCP, PTC, or subagent infrastructure.
 
-A small React frontend now consumes the Phase 11 API so the agent can be tested
+A small React frontend now consumes the Phase 12 API so the agent can be tested
 interactively. It provides a durable thread list, transcript loading, streaming
 assistant text, tool progress, company overview cards, historical price charts,
 and comparisons derived from multiple company artifacts. The agent can also
 retrieve statements, ratios, estimates, SEC filing metadata, ownership,
-insider activity, and recent news. TanStack
+insider activity, and recent news. Deterministic tools calculate return
+statistics, volatility, drawdowns, correlations, SMA/EMA/RSI indicators, and
+lagged moving-average backtests; the model explains results but never performs
+the arithmetic. TanStack
 React Query caches committed thread/transcript server state; provisional SSE
 events remain in a local reducer until the completed transcript is refetched.
 The Stop control performs durable server-side cancellation. Interrupted event
 requests reconnect with `Last-Event-ID` and do not duplicate reduced events.
+Active turns immediately report whether the agent is planning, running tools,
+or synthesizing, together with elapsed time. Final model text is streamed as it
+is generated rather than held until the complete response is available.
 
 The original stateless endpoint remains available. Each call to it starts with
 fresh graph state.
@@ -247,9 +254,11 @@ app/api/routes/                  health, readiness, stateless, and thread routes
 app/api/schemas.py               strict public HTTP contracts
 app/domain/                      normalized company and fundamental datasets
 app/domain/prices.py             normalized OHLCV price-history contract
+app/domain/quantitative.py       structured calculation-result contract
 app/persistence/                 repository contract and memory/Postgres adapters
 app/providers/                   provider protocol and Yahoo implementation
 app/services/company_research.py provider-neutral financial-data orchestration
+app/services/quantitative_research.py deterministic market calculations
 app/services/research_agent.py   transport-neutral graph execution
 app/services/thread_research.py  durable admission, execution, and finalization
 app/services/run_manager.py      detached worker, event attachment, cancellation
@@ -273,3 +282,4 @@ cli.py                           interactive stateless trace runner
 - [Phase 8 Redis reconnect guide](docs/phase-8-api.md)
 - [Phase 10 structured artifact guide](docs/phase-10-artifacts.md)
 - [Phase 11 fundamental research guide](docs/phase-11-fundamentals.md)
+- [Phase 12 quantitative research guide](docs/phase-12-quantitative.md)

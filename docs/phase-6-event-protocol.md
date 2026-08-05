@@ -20,6 +20,9 @@ not durable reconnect cursors; Redis-backed replay is deferred to Phase 8.
 ## Events
 
 - `metadata`: first event; contains `turn_index` and `replayed`.
+- `progress`: contains a stable execution `phase` (`planning`,
+  `running_tools`, or `synthesizing`), a user-facing message, and optionally
+  the tool names selected for the current batch.
 - `message_chunk`: contains a new assistant-text `delta`.
 - `tool_call`: contains `tool_call_id`, tool `name`, and complete `arguments`.
 - `tool_result`: contains the correlated call ID, name, status, and compact

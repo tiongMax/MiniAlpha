@@ -14,4 +14,4 @@ router = APIRouter(tags=["system"])
 )
 async def health() -> HealthResponse:
     """Report process liveness without calling external services."""
-    return HealthResponse(status="ok", service="mini-alpha", phase=11)
+    return HealthResponse(status="ok", service="mini-alpha", phase=12)

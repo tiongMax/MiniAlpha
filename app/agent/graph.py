@@ -4,7 +4,12 @@ import asyncio
 from collections.abc import Sequence
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import (
+    AIMessage,
+    AIMessageChunk,
+    SystemMessage,
+    message_chunk_to_message,
+)
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
@@ -59,11 +64,22 @@ def build_graph(
         ]
         try:
             async with asyncio.timeout(model_timeout_seconds):
-                response = await model_with_tools.ainvoke(model_messages)
+                streamed: AIMessage | AIMessageChunk | None = None
+                async for chunk in model_with_tools.astream(model_messages):
+                    if not isinstance(chunk, (AIMessage, AIMessageChunk)):
+                        continue
+                    streamed = chunk if streamed is None else streamed + chunk
         except TimeoutError as error:
             raise ModelInvocationTimeout(
                 f"The model exceeded its {model_timeout_seconds:g}s deadline."
             ) from error
+        if streamed is None:
+            raise RuntimeError("The model returned no message.")
+        response = (
+            message_chunk_to_message(streamed)
+            if isinstance(streamed, AIMessageChunk)
+            else streamed
+        )
         return {"messages": [response]}
 
     tool_node = ToolNode(graph_tools)
