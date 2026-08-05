@@ -10,6 +10,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import StateSnapshot
 
 from app.agent.content import text_content
+from app.agent.errors import ModelInvocationTimeout, ToolInvocationTimeout
 from app.agent.state import ResearchState
 
 
@@ -113,6 +114,15 @@ class CheckpointedResearchGraph(ResearchGraph, Protocol):
 
 class ResearchExecutionError(RuntimeError):
     """Raised when the graph cannot produce a final research answer."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "research_failed",
+    ) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class ResearchAgentService:
@@ -241,6 +251,10 @@ class ResearchAgentService:
                         yield AgentStreamEvent(event="artifact", data=artifact)
         except ResearchExecutionError:
             raise
+        except ModelInvocationTimeout as error:
+            raise ResearchExecutionError(str(error), code="model_timeout") from error
+        except ToolInvocationTimeout as error:
+            raise ResearchExecutionError(str(error), code="tool_timeout") from error
         except Exception as error:
             raise ResearchExecutionError(
                 "The research agent could not complete the request."
@@ -281,6 +295,10 @@ class ResearchAgentService:
                 {"messages": [human_message]},
                 config=config,
             )
+        except ModelInvocationTimeout as error:
+            raise ResearchExecutionError(str(error), code="model_timeout") from error
+        except ToolInvocationTimeout as error:
+            raise ResearchExecutionError(str(error), code="tool_timeout") from error
         except Exception as error:
             raise ResearchExecutionError(
                 "The research agent could not complete the request."

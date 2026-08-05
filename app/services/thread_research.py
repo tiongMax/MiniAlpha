@@ -107,6 +107,7 @@ class ThreadResearchService:
     ) -> None:
         self._repository = repository
         self._agent = agent
+        self._startup_recovery_completed = False
 
     async def research(
         self,
@@ -132,11 +133,12 @@ class ThreadResearchService:
                 run_id=run.run_id,
                 checkpoint_id=admission.from_checkpoint_id,
             )
-        except ResearchExecutionError:
+        except ResearchExecutionError as error:
+            message = self._execution_error_message(error)
             await self._repository.fail_run(
                 run.run_id,
-                error_code="research_failed",
-                error_message="The research agent could not complete the request.",
+                error_code=error.code,
+                error_message=message,
             )
             raise
 
@@ -279,22 +281,23 @@ class ThreadResearchService:
                 {"status": "error", "error_code": "thread_conflict"},
             )
             return
-        except ResearchExecutionError:
+        except ResearchExecutionError as error:
+            message = self._execution_error_message(error)
             await self._repository.fail_run(
                 run.run_id,
-                error_code="research_failed",
-                error_message="The research agent could not complete the request.",
+                error_code=error.code,
+                error_message=message,
             )
             yield producer.emit(
                 "error",
                 {
-                    "code": "research_failed",
-                    "message": "The research agent could not complete the request.",
+                    "code": error.code,
+                    "message": message,
                 },
             )
             yield producer.emit(
                 "run_end",
-                {"status": "error", "error_code": "research_failed"},
+                {"status": "error", "error_code": error.code},
             )
             return
 
@@ -335,6 +338,28 @@ class ThreadResearchService:
             artifacts=artifacts,
         )
 
+    async def recover_abandoned_runs(self) -> int:
+        """Fail work left active before this process acquired ownership."""
+        if self._startup_recovery_completed:
+            return 0
+        recovered = await self._repository.recover_abandoned_runs()
+        self._startup_recovery_completed = True
+        return recovered
+
+    async def fail_run(
+        self,
+        run_id: UUID,
+        *,
+        error_code: str,
+        error_message: str,
+    ) -> ConversationRun:
+        """Persist an infrastructure failure for an active run."""
+        return await self._repository.fail_run(
+            run_id,
+            error_code=error_code,
+            error_message=error_message,
+        )
+
     async def get_turn(self, run_id: UUID) -> ConversationTurn:
         """Return one durable run or raise a controlled not-found error."""
         turn = await self._repository.get_turn(run_id)
@@ -370,6 +395,15 @@ class ThreadResearchService:
             ),
             replayed=replayed,
         )
+
+    @staticmethod
+    def _execution_error_message(error: ResearchExecutionError) -> str:
+        """Return a stable public message without leaking provider details."""
+        if error.code == "model_timeout":
+            return "The research model timed out."
+        if error.code == "tool_timeout":
+            return "A research tool timed out."
+        return "The research agent could not complete the request."
 
     @staticmethod
     def _stored_tool_calls(

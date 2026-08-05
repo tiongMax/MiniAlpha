@@ -77,6 +77,10 @@ class ConversationRepository(Protocol):
         """Mark an active run terminal without moving the checkpoint head."""
         ...
 
+    async def recover_abandoned_runs(self) -> int:
+        """Fail runs left active by an earlier process and return their count."""
+        ...
+
     async def cancel_run(
         self,
         run_id: UUID,

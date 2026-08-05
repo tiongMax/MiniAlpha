@@ -1,5 +1,6 @@
 """Explicit LangGraph construction for the research agent."""
 
+import asyncio
 from collections.abc import Sequence
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -9,6 +10,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
+from app.agent.errors import ModelInvocationTimeout, ToolInvocationTimeout
 from app.agent.nodes import route_after_model
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.state import ResearchState
@@ -20,6 +22,8 @@ def build_graph(
     *,
     tools: Sequence[BaseTool] | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
+    model_timeout_seconds: float = 60.0,
+    tool_timeout_seconds: float = 30.0,
 ):
     """Compile MiniAlpha's explicit model-tool loop.
 
@@ -53,12 +57,30 @@ def build_graph(
             SystemMessage(content=SYSTEM_PROMPT),
             *state["messages"],
         ]
-        response = await model_with_tools.ainvoke(model_messages)
+        try:
+            async with asyncio.timeout(model_timeout_seconds):
+                response = await model_with_tools.ainvoke(model_messages)
+        except TimeoutError as error:
+            raise ModelInvocationTimeout(
+                f"The model exceeded its {model_timeout_seconds:g}s deadline."
+            ) from error
         return {"messages": [response]}
+
+    tool_node = ToolNode(graph_tools)
+
+    async def call_tools(state: ResearchState) -> ResearchState:
+        """Run one tool step within its configured deadline."""
+        try:
+            async with asyncio.timeout(tool_timeout_seconds):
+                return await tool_node.ainvoke(state)
+        except TimeoutError as error:
+            raise ToolInvocationTimeout(
+                f"A tool exceeded its {tool_timeout_seconds:g}s deadline."
+            ) from error
 
     builder = StateGraph(ResearchState)
     builder.add_node("model", call_model)
-    builder.add_node("tools", ToolNode(graph_tools))
+    builder.add_node("tools", call_tools)
 
     builder.add_edge(START, "model")
     builder.add_conditional_edges(
