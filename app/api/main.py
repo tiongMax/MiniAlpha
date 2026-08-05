@@ -18,8 +18,10 @@ from app.api.errors import register_exception_handlers
 from app.api.routes.health import router as health_router
 from app.api.routes.readiness import router as readiness_router
 from app.api.routes.research import router as research_router
+from app.api.routes.runs import router as runs_router
 from app.api.routes.threads import router as threads_router
 from app.services.research_agent import ResearchAgentService
+from app.services.run_manager import DetachedRunManager
 from app.services.thread_research import ThreadResearchService
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,7 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         """Compose production dependencies once while preserving liveness."""
         owned_runtime = None
+        run_manager = None
         if research_service is not None:
             app.state.research_service = research_service
             app.state.research_startup_failed = False
@@ -60,15 +63,23 @@ def create_app(
                 app.state.thread_research_service = None
                 app.state.persistence_runtime = None
                 app.state.persistence_startup_failed = True
+        if app.state.thread_research_service is not None:
+            run_manager = DetachedRunManager(app.state.thread_research_service)
+            await run_manager.start()
+            app.state.run_manager = run_manager
+        else:
+            app.state.run_manager = None
         try:
             yield
         finally:
+            if run_manager is not None:
+                await run_manager.close()
             if owned_runtime is not None:
                 await owned_runtime.close()
 
     api = FastAPI(
         title="MiniAlpha API",
-        version="0.6.0",
+        version="0.7.0",
         description=(
             "HTTP access to MiniAlpha's explicit LangGraph financial research "
             "agent. Use the stateless research route for independent requests "
@@ -81,6 +92,7 @@ def create_app(
     api.include_router(readiness_router)
     api.include_router(research_router)
     api.include_router(threads_router)
+    api.include_router(runs_router)
     register_exception_handlers(api)
 
     @api.middleware("http")

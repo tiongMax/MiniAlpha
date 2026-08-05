@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.dependencies import (
     ResearchServiceUnavailableError,
+    RunManagerUnavailableError,
     ThreadServiceUnavailableError,
 )
 from app.api.schemas import ErrorDetail, ErrorResponse
@@ -78,6 +79,7 @@ def register_exception_handlers(api: FastAPI) -> None:
         )
 
     @api.exception_handler(ThreadServiceUnavailableError)
+    @api.exception_handler(RunManagerUnavailableError)
     async def handle_unavailable_persistence(
         _request: Request,
         _error: Exception,

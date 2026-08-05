@@ -20,6 +20,7 @@ _REQUIRED_TABLES = (
     "checkpoint_writes",
     "checkpoint_migrations",
 )
+_REQUIRED_ALEMBIC_REVISION = "003_phase_7_partial_cancel"
 
 
 async def _configure_connection(connection: AsyncConnection[DictRow]) -> None:
@@ -95,8 +96,16 @@ class PersistenceRuntime:
                     if row is None:
                         return False
                     table_count = row["table_count"]
-                    return isinstance(table_count, int) and table_count == len(
-                        _REQUIRED_TABLES
+                    if not (
+                        isinstance(table_count, int)
+                        and table_count == len(_REQUIRED_TABLES)
+                    ):
+                        return False
+                    await cursor.execute("SELECT version_num FROM alembic_version")
+                    revision = await cursor.fetchone()
+                    return (
+                        revision is not None
+                        and revision["version_num"] == _REQUIRED_ALEMBIC_REVISION
                     )
         except Exception:
             return False

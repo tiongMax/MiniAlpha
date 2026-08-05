@@ -79,6 +79,22 @@ class PostgresConversationRepository:
             error_message=error_message,
         )
 
+    async def cancel_run(
+        self,
+        run_id: UUID,
+        *,
+        partial_answer: str = "",
+        tool_calls: Sequence[dict[str, object]] = (),
+        artifacts: Sequence[dict[str, object]] = (),
+    ) -> ConversationRun:
+        """Finalize a cancelled run without publishing a checkpoint."""
+        return await self._lifecycle.cancel_run(
+            run_id,
+            partial_answer=partial_answer,
+            tool_calls=tool_calls,
+            artifacts=artifacts,
+        )
+
     async def get_thread(self, thread_id: UUID) -> ConversationThread | None:
         """Return one PostgreSQL-backed thread."""
         return await self._reader.get_thread(thread_id)

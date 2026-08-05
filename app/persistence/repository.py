@@ -77,6 +77,17 @@ class ConversationRepository(Protocol):
         """Mark an active run terminal without moving the checkpoint head."""
         ...
 
+    async def cancel_run(
+        self,
+        run_id: UUID,
+        *,
+        partial_answer: str = "",
+        tool_calls: Sequence[dict[str, object]] = (),
+        artifacts: Sequence[dict[str, object]] = (),
+    ) -> ConversationRun:
+        """Mark an active run cancelled without moving the checkpoint head."""
+        ...
+
     async def get_thread(self, thread_id: UUID) -> ConversationThread | None:
         """Return one thread or ``None`` when it does not exist."""
         ...

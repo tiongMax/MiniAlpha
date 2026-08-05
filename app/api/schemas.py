@@ -80,7 +80,7 @@ class HealthResponse(BaseModel):
 
     status: Literal["ok"]
     service: Literal["mini-alpha"]
-    phase: Literal[6]
+    phase: Literal[7]
 
 
 class ReadinessResponse(BaseModel):
@@ -88,7 +88,7 @@ class ReadinessResponse(BaseModel):
 
     status: Literal["ready"]
     service: Literal["mini-alpha"]
-    phase: Literal[6]
+    phase: Literal[7]
     persistence: Literal["ready"]
 
 
@@ -156,7 +156,7 @@ class ThreadResponse(BaseModel):
     """Public durable-thread metadata."""
 
     thread_id: UUID
-    status: Literal["in_progress", "completed", "error"]
+    status: Literal["in_progress", "completed", "error", "cancelled"]
     title: str | None
     created_at: datetime
     updated_at: datetime
@@ -177,7 +177,7 @@ class ThreadTurnResponse(BaseModel):
     run_id: UUID
     turn_index: int = Field(ge=1)
     attempt_no: int = Field(ge=1)
-    status: Literal["in_progress", "completed", "error"]
+    status: Literal["in_progress", "completed", "error", "cancelled"]
     message: str
     answer: str | None
     tool_calls: list[ToolCallResponse]
@@ -192,3 +192,22 @@ class ThreadTranscriptResponse(BaseModel):
 
     thread_id: UUID
     turns: list[ThreadTurnResponse]
+
+
+class RunAcceptedResponse(BaseModel):
+    """Identity returned before detached execution completes."""
+
+    run_id: UUID
+    thread_id: UUID
+    turn_index: int = Field(ge=1)
+    status: Literal["in_progress", "completed", "error", "cancelled"]
+    replayed: bool
+    events_url: str
+
+
+class RunCancellationResponse(BaseModel):
+    """Durable result of an explicit cancellation request."""
+
+    run_id: UUID
+    thread_id: UUID
+    status: Literal["cancelled"]

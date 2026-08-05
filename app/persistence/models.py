@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-RunStatus = Literal["in_progress", "completed", "error"]
-ThreadStatus = Literal["in_progress", "completed", "error"]
+RunStatus = Literal["in_progress", "completed", "error", "cancelled"]
+ThreadStatus = Literal["in_progress", "completed", "error", "cancelled"]
 
 
 @dataclass(frozen=True, slots=True)

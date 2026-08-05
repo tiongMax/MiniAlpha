@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import StreamingResponse
 
-from app.api.dependencies import get_thread_research_service
+from app.api.dependencies import get_run_manager, get_thread_research_service
 from app.api.schemas import (
     ArtifactResponse,
     ErrorDetail,
@@ -22,6 +22,7 @@ from app.api.schemas import (
 )
 from app.api.sse import SSE_HEADERS, encode_sse
 from app.persistence.models import ConversationThread, ConversationTurn
+from app.services.run_manager import DetachedRunManager
 from app.services.thread_research import ThreadResearchResult, ThreadResearchService
 
 router = APIRouter(prefix="/api/v1/threads", tags=["threads"])
@@ -29,6 +30,7 @@ ThreadService = Annotated[
     ThreadResearchService,
     Depends(get_thread_research_service),
 ]
+RunManager = Annotated[DetachedRunManager, Depends(get_run_manager)]
 
 
 def _thread_response(thread: ConversationThread) -> ThreadResponse:
@@ -136,22 +138,22 @@ async def create_thread_message(
 
 async def _stream_response(
     request: ThreadMessageRequest,
-    service: ThreadResearchService,
+    manager: DetachedRunManager,
     *,
     thread_id: UUID | None,
 ) -> StreamingResponse:
     """Admit one run, then expose its stable application events as SSE."""
-    prepared = await service.prepare_stream(
+    submission = await manager.submit(
         request.messages[0].content,
         thread_id=thread_id,
         request_key=request.request_key,
     )
 
     async def frames() -> AsyncIterator[str]:
-        async for event in service.stream(prepared):
+        async for event in manager.events(submission.run_id):
             yield encode_sse(event)
 
-    actual_thread_id = prepared.admission.run.thread_id
+    actual_thread_id = submission.thread_id
     headers = {
         **SSE_HEADERS,
         "Content-Location": f"/api/v1/threads/{actual_thread_id}/messages",
@@ -171,10 +173,10 @@ async def _stream_response(
 )
 async def create_thread_message_stream(
     request: ThreadMessageRequest,
-    service: ThreadService,
+    manager: RunManager,
 ) -> StreamingResponse:
     """Create a durable thread and stream its first turn as application events."""
-    return await _stream_response(request, service, thread_id=None)
+    return await _stream_response(request, manager, thread_id=None)
 
 
 @router.post(
@@ -220,10 +222,10 @@ async def continue_thread(
 async def continue_thread_stream(
     thread_id: UUID,
     request: ThreadMessageRequest,
-    service: ThreadService,
+    manager: RunManager,
 ) -> StreamingResponse:
     """Stream one new turn from the thread's committed checkpoint."""
-    return await _stream_response(request, service, thread_id=thread_id)
+    return await _stream_response(request, manager, thread_id=thread_id)
 
 
 @router.get(

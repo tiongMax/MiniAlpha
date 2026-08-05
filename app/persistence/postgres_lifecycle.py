@@ -147,6 +147,68 @@ class PostgresRunLifecycle:
                         raise RunNotFoundError("The research run was not found.")
                     return failed
 
+    async def cancel_run(
+        self,
+        run_id: UUID,
+        *,
+        partial_answer: str = "",
+        tool_calls: Sequence[dict[str, object]] = (),
+        artifacts: Sequence[dict[str, object]] = (),
+    ) -> ConversationRun:
+        """Mark a run cancelled without publishing a graph checkpoint."""
+        stored_values = [
+            artifact_values(ordinal, artifact)
+            for ordinal, artifact in enumerate(artifacts)
+        ]
+        async with self._pool.connection() as connection:
+            async with connection.transaction():
+                async with connection.cursor(row_factory=dict_row) as cursor:
+                    run = self._require_in_progress(
+                        await self._reader.lock_run(cursor, run_id)
+                    )
+                    await cursor.execute(
+                        """
+                        UPDATE conversation_responses
+                        SET status = 'cancelled',
+                            answer = %s,
+                            tool_calls = %s,
+                            error_code = 'cancelled',
+                            error_message = 'The research run was cancelled.',
+                            completed_at = NOW()
+                        WHERE conversation_response_id = %s
+                        """,
+                        (partial_answer or None, Jsonb(list(tool_calls)), run_id),
+                    )
+                    for values in stored_values:
+                        await cursor.execute(
+                            """
+                            INSERT INTO conversation_artifacts (
+                                conversation_response_id,
+                                ordinal,
+                                artifact_type,
+                                schema_version,
+                                status,
+                                data,
+                                error
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            """,
+                            (run_id, *values),
+                        )
+                    await cursor.execute(
+                        """
+                        UPDATE conversation_threads
+                        SET current_status = 'cancelled',
+                            updated_at = NOW()
+                        WHERE conversation_thread_id = %s
+                        """,
+                        (run.thread_id,),
+                    )
+                    cancelled = await self._reader.fetch_run(cursor, run_id)
+                    if cancelled is None:
+                        raise RunNotFoundError("The research run was not found.")
+                    return cancelled
+
     @staticmethod
     def _require_in_progress(
         run: ConversationRun | None,
