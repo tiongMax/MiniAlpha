@@ -4,10 +4,10 @@ MiniAlpha is a learning project that rebuilds the core research loop behind
 LangAlpha with an explicit LangGraph instead of
 `langchain.agents.create_agent`.
 
-## Phase 8 reconnectable run events
+## Phase 10 structured financial artifacts
 
-Phase 8 supports independent research requests, durable conversations,
-detached execution, explicit cancellation, and reconnectable live events:
+Phase 10 builds on the detached, reconnectable run lifecycle with typed
+financial evidence and purpose-built rendering:
 
 ```text
 HTTP client
@@ -17,8 +17,9 @@ HTTP client
        -> conversation repository -> PostgreSQL application tables
        -> ResearchAgentService -> explicit LangGraph
                                   -> PostgreSQL checkpoints
-                                  -> company research tool -> Yahoo Finance
+                                  -> overview + price-history tools -> Yahoo Finance
                                   -> application event translator -> Redis Streams -> SSE
+  -> React artifact renderer -> company cards, charts, comparison tables
 ```
 
 Phase 4 introduced application-owned records for threads, queries, runs, and
@@ -33,9 +34,10 @@ Redis is live transport rather than lifecycle truth. MiniAlpha does not yet
 copy LangAlpha's multi-worker coordination, authentication, workspaces,
 sandboxing, MCP, PTC, or subagent infrastructure.
 
-A small React frontend now consumes the Phase 8 API so the agent can be tested
+A small React frontend now consumes the Phase 10 API so the agent can be tested
 interactively. It provides a durable thread list, transcript loading, streaming
-assistant text, tool progress, and structured artifact inspection. TanStack
+assistant text, tool progress, company overview cards, historical price charts,
+and comparisons derived from multiple company artifacts. TanStack
 React Query caches committed thread/transcript server state; provisional SSE
 events remain in a local reducer until the completed transcript is refetched.
 The Stop control performs durable server-side cancellation. Interrupted event
@@ -242,6 +244,7 @@ app/api/main.py                  FastAPI factory, lifespan, and error mapping
 app/api/routes/                  health, readiness, stateless, and thread routes
 app/api/schemas.py               strict public HTTP contracts
 app/domain/                      normalized company data and expected errors
+app/domain/prices.py             normalized OHLCV price-history contract
 app/persistence/                 repository contract and memory/Postgres adapters
 app/providers/                   provider protocol and Yahoo implementation
 app/services/company_research.py provider-neutral financial-data orchestration
@@ -249,6 +252,7 @@ app/services/research_agent.py   transport-neutral graph execution
 app/services/thread_research.py  durable admission, execution, and finalization
 app/services/run_manager.py      detached worker, event attachment, cancellation
 app/events/store.py              Redis Streams replay and test event transport
+frontend/src/artifacts/          typed artifact guards and financial renderers
 migrations/                      application-owned PostgreSQL schema
 scripts/setup_database.py        Alembic and LangGraph checkpoint initialization
 scripts/run_api.py               psycopg-compatible API launcher
@@ -265,3 +269,4 @@ cli.py                           interactive stateless trace runner
 - [Frontend architecture and run guide](docs/frontend.md)
 - [Phase 7 API and lifecycle guide](docs/phase-7-api.md)
 - [Phase 8 Redis reconnect guide](docs/phase-8-api.md)
+- [Phase 10 structured artifact guide](docs/phase-10-artifacts.md)
