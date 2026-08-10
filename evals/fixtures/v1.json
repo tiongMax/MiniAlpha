@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "description": "Synthetic frozen outcomes for credential-free framework verification. They are not measurements of the live agent.",
+  "fixtures": {
+    "company-overview-aapl": {
+      "final_answer": "Apple is a Technology company. Provider data may be delayed.",
+      "tool_calls": [{"name": "get_company_overview", "arguments": {"symbol": "AAPL"}, "status": "ok"}],
+      "tool_results": [{"name": "get_company_overview", "content": "Apple Inc. (AAPL)", "artifact": {"artifact_type": "company_overview", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "company_overview", "schema_version": 1, "status": "ok", "data": {"symbol": "AAPL", "company_name": "Apple Inc.", "sector": "Technology", "provider": "Frozen Finance", "retrieved_at": "2026-08-01T00:00:00+00:00"}}]
+    },
+    "fundamental-ratios-msft": {
+      "final_answer": "Microsoft's valuation and profitability metrics are available in the frozen ratios fixture.",
+      "tool_calls": [{"name": "get_fundamental_ratios", "arguments": {"symbol": "MSFT"}, "status": "ok"}],
+      "tool_results": [{"name": "get_fundamental_ratios", "content": "MSFT ratios", "artifact": {"artifact_type": "fundamental_ratios", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "fundamental_ratios", "schema_version": 1, "status": "ok", "data": {"symbol": "MSFT", "provider": "Frozen Finance", "records": [{"trailing_pe": 31.0, "profit_margin": 0.35}]}}]
+    },
+    "financial-statements-nvda": {
+      "final_answer": "NVIDIA yearly statements cover 2025 and three earlier fiscal periods.",
+      "tool_calls": [{"name": "get_financial_statements", "arguments": {"symbol": "NVDA", "frequency": "yearly"}, "status": "ok"}],
+      "tool_results": [{"name": "get_financial_statements", "content": "NVDA yearly statements", "artifact": {"artifact_type": "financial_statements", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "financial_statements", "schema_version": 1, "status": "ok", "data": {"symbol": "NVDA", "frequency": "yearly", "periods": ["2025", "2024", "2023", "2022"]}}]
+    },
+    "sec-filings-tsla": {
+      "final_answer": "Tesla SEC filing metadata contains the five requested filing records.",
+      "tool_calls": [{"name": "get_sec_filings", "arguments": {"symbol": "TSLA", "limit": 5}, "status": "ok"}],
+      "tool_results": [{"name": "get_sec_filings", "content": "Five Tesla filings", "artifact": {"artifact_type": "sec_filings", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "sec_filings", "schema_version": 1, "status": "ok", "data": {"symbol": "TSLA", "records": [{"form": "10-Q"}, {"form": "8-K"}, {"form": "4"}, {"form": "4"}, {"form": "8-K"}]}}]
+    },
+    "returns-aapl": {
+      "final_answer": "Apple's historical total return was 12%; this deterministic result is not a forecast.",
+      "tool_calls": [{"name": "calculate_return_statistics", "arguments": {"symbol": "AAPL", "period": "1y", "interval": "1d"}, "status": "ok"}],
+      "tool_results": [{"name": "calculate_return_statistics", "content": "AAPL return statistics", "artifact": {"artifact_type": "return_statistics", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "return_statistics", "schema_version": 1, "status": "ok", "data": {"symbol": "AAPL", "summary": {"total_return": {"value": 12.0, "unit": "percent"}}, "provider": "Frozen Finance"}}]
+    },
+    "volatility-msft": {
+      "final_answer": "Microsoft's annualized volatility was 24% in this historical fixture.",
+      "tool_calls": [{"name": "calculate_volatility", "arguments": {"symbol": "MSFT", "period": "1y", "interval": "1d"}, "status": "ok"}],
+      "tool_results": [{"name": "calculate_volatility", "content": "MSFT volatility", "artifact": {"artifact_type": "volatility_analysis", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "volatility_analysis", "schema_version": 1, "status": "ok", "data": {"symbol": "MSFT", "summary": {"annualized_volatility": {"value": 0.24, "unit": "decimal"}}}}]
+    },
+    "drawdown-nvda": {
+      "final_answer": "NVIDIA's historical maximum drawdown was -15% in the frozen window.",
+      "tool_calls": [{"name": "analyze_drawdowns", "arguments": {"symbol": "NVDA", "period": "2y", "interval": "1d"}, "status": "ok"}],
+      "tool_results": [{"name": "analyze_drawdowns", "content": "NVDA drawdown", "artifact": {"artifact_type": "drawdown_analysis", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "drawdown_analysis", "schema_version": 1, "status": "ok", "data": {"symbol": "NVDA", "summary": {"maximum_drawdown": {"value": -15.0, "unit": "percent"}}}}]
+    },
+    "correlation-aapl-msft": {
+      "final_answer": "The historical return correlation was 0.75; correlation is not causation.",
+      "tool_calls": [{"name": "calculate_correlations", "arguments": {"symbols": ["AAPL", "MSFT"], "period": "1y", "interval": "1d"}, "status": "ok"}],
+      "tool_results": [{"name": "calculate_correlations", "content": "Pairwise correlation", "artifact": {"artifact_type": "correlation_analysis", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "correlation_analysis", "schema_version": 1, "status": "ok", "data": {"symbols": ["AAPL", "MSFT"], "summary": {"aapl_msft": 0.75}}}]
+    },
+    "ma-backtest-spy": {
+      "final_answer": "The lagged strategy returned 8% after transaction costs; this is not a forecast.",
+      "tool_calls": [{"name": "backtest_moving_average", "arguments": {"symbol": "SPY", "period": "5y", "interval": "1d", "short_window": 20, "long_window": 50, "transaction_cost_bps": 10}, "status": "ok"}],
+      "tool_results": [{"name": "backtest_moving_average", "content": "SPY backtest", "artifact": {"artifact_type": "moving_average_backtest", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "moving_average_backtest", "schema_version": 1, "status": "ok", "data": {"symbol": "SPY", "summary": {"strategy_total_return": {"value": 0.08, "unit": "decimal"}}}}]
+    },
+    "compare-aapl-msft": {
+      "final_answer": "Apple and Microsoft differ in valuation and profitability in the common comparison dataset.",
+      "tool_calls": [{"name": "compare_companies", "arguments": {"symbols": ["AAPL", "MSFT"]}, "status": "ok"}],
+      "tool_results": [{"name": "compare_companies", "content": "Two-company comparison", "artifact": {"artifact_type": "company_comparison", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "company_comparison", "schema_version": 1, "status": "ok", "data": {"symbols": ["AAPL", "MSFT"]}}]
+    },
+    "compare-three-tech": {
+      "final_answer": "Apple, Microsoft, and Alphabet are compared with the same metrics.",
+      "tool_calls": [{"name": "compare_companies", "arguments": {"symbols": ["AAPL", "MSFT", "GOOGL"]}, "status": "ok"}],
+      "tool_results": [{"name": "compare_companies", "content": "Three-company comparison", "artifact": {"artifact_type": "company_comparison", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "company_comparison", "schema_version": 1, "status": "ok", "data": {"symbols": ["AAPL", "MSFT", "GOOGL"]}}]
+    },
+    "compare-correlations-three": {
+      "final_answer": "The AAPL, MSFT, and NVDA correlation matrix uses aligned daily returns.",
+      "tool_calls": [{"name": "calculate_correlations", "arguments": {"symbols": ["AAPL", "MSFT", "NVDA"], "period": "1y", "interval": "1d"}, "status": "ok"}],
+      "tool_results": [{"name": "calculate_correlations", "content": "Three-symbol correlations", "artifact": {"artifact_type": "correlation_analysis", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "correlation_analysis", "schema_version": 1, "status": "ok", "data": {"symbols": ["AAPL", "MSFT", "NVDA"]}}]
+    },
+    "research-aapl-health": {
+      "final_answer": "Apple's business profile, fundamentals, and return statistics are summarized with provider limitations.",
+      "tool_calls": [
+        {"name": "get_company_overview", "arguments": {"symbol": "AAPL"}, "status": "ok"},
+        {"name": "get_fundamental_ratios", "arguments": {"symbol": "AAPL"}, "status": "ok"},
+        {"name": "calculate_return_statistics", "arguments": {"symbol": "AAPL", "period": "1y", "interval": "1d"}, "status": "ok"}
+      ],
+      "tool_results": [
+        {"name": "get_company_overview", "content": "AAPL overview", "artifact": {"artifact_type": "company_overview", "status": "ok"}},
+        {"name": "get_fundamental_ratios", "content": "AAPL ratios", "artifact": {"artifact_type": "fundamental_ratios", "status": "ok"}},
+        {"name": "calculate_return_statistics", "content": "AAPL returns", "artifact": {"artifact_type": "return_statistics", "status": "ok"}}
+      ],
+      "artifacts": [{"artifact_type": "company_overview", "schema_version": 1, "status": "ok", "data": {"symbol": "AAPL"}}, {"artifact_type": "fundamental_ratios", "schema_version": 1, "status": "ok", "data": {"symbol": "AAPL"}}, {"artifact_type": "return_statistics", "schema_version": 1, "status": "ok", "data": {"symbol": "AAPL"}}]
+    },
+    "research-tsla-risk": {
+      "final_answer": "Tesla fundamentals, volatility, and drawdown describe historical risk, not future performance.",
+      "tool_calls": [
+        {"name": "get_fundamental_ratios", "arguments": {"symbol": "TSLA"}, "status": "ok"},
+        {"name": "calculate_volatility", "arguments": {"symbol": "TSLA", "period": "2y", "interval": "1d"}, "status": "ok"},
+        {"name": "analyze_drawdowns", "arguments": {"symbol": "TSLA", "period": "2y", "interval": "1d"}, "status": "ok"}
+      ],
+      "tool_results": [],
+      "artifacts": [{"artifact_type": "fundamental_ratios", "schema_version": 1, "status": "ok", "data": {"symbol": "TSLA"}}, {"artifact_type": "volatility_analysis", "schema_version": 1, "status": "ok", "data": {"symbol": "TSLA"}}, {"artifact_type": "drawdown_analysis", "schema_version": 1, "status": "ok", "data": {"symbol": "TSLA"}}]
+    },
+    "research-news-fundamentals": {
+      "final_answer": "Microsoft recent news and fundamental ratios are facts from fixtures; interpretation is separate and provider data may be incomplete.",
+      "tool_calls": [{"name": "get_company_news", "arguments": {"symbol": "MSFT", "limit": 8}, "status": "ok"}, {"name": "get_fundamental_ratios", "arguments": {"symbol": "MSFT"}, "status": "ok"}],
+      "tool_results": [],
+      "artifacts": [{"artifact_type": "company_news", "schema_version": 1, "status": "ok", "data": {"symbol": "MSFT", "records": [{"title": "Frozen headline", "url": "https://example.invalid/news"}]}}, {"artifact_type": "fundamental_ratios", "schema_version": 1, "status": "ok", "data": {"symbol": "MSFT"}}]
+    },
+    "invalid-symbol": {
+      "final_answer": "Company data is unavailable for NOTAREAL, so I could not verify the requested analysis.",
+      "tool_calls": [{"name": "get_company_overview", "arguments": {"symbol": "NOTAREAL"}, "status": "error", "summary": "Symbol unavailable"}],
+      "tool_results": [{"name": "get_company_overview", "content": "Symbol unavailable", "artifact": {"artifact_type": "company_overview", "status": "error"}}],
+      "artifacts": [{"artifact_type": "company_overview", "schema_version": 1, "status": "error", "error": "Symbol unavailable"}],
+      "errors": ["expected provider error: symbol unavailable"]
+    },
+    "missing-estimates": {
+      "final_answer": "There are no analyst estimates in the fixture; the values are missing, not zero.",
+      "tool_calls": [{"name": "get_analyst_estimates", "arguments": {"symbol": "EMPTY"}, "status": "ok"}],
+      "tool_results": [{"name": "get_analyst_estimates", "content": "No records", "artifact": {"artifact_type": "analyst_estimates", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "analyst_estimates", "schema_version": 1, "status": "ok", "data": {"symbol": "EMPTY", "records": []}}]
+    },
+    "followup-same-period": {
+      "final_answer": "Microsoft return statistics use the same one-year period as the prior Apple turn.",
+      "tool_calls": [{"name": "calculate_return_statistics", "arguments": {"symbol": "MSFT", "period": "1y", "interval": "1d"}, "status": "ok"}],
+      "tool_results": [{"name": "calculate_return_statistics", "content": "MSFT one-year returns", "artifact": {"artifact_type": "return_statistics", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "return_statistics", "schema_version": 1, "status": "ok", "data": {"symbol": "MSFT", "period": "1y"}}]
+    },
+    "followup-add-google": {
+      "final_answer": "The three-company comparison now covers Apple, Microsoft, and Alphabet.",
+      "tool_calls": [{"name": "compare_companies", "arguments": {"symbols": ["AAPL", "MSFT", "GOOGL"]}, "status": "ok"}],
+      "tool_results": [{"name": "compare_companies", "content": "Expanded comparison", "artifact": {"artifact_type": "company_comparison", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "company_comparison", "schema_version": 1, "status": "ok", "data": {"symbols": ["AAPL", "MSFT", "GOOGL"]}}]
+    },
+    "followup-topic-switch": {
+      "final_answer": "NVIDIA technical indicators use the requested 20-day and 50-day windows.",
+      "tool_calls": [{"name": "calculate_technical_indicators", "arguments": {"symbol": "NVDA", "period": "1y", "interval": "1d", "short_window": 20, "long_window": 50, "rsi_period": 14}, "status": "ok"}],
+      "tool_results": [{"name": "calculate_technical_indicators", "content": "NVDA indicators", "artifact": {"artifact_type": "technical_indicators", "status": "ok"}}],
+      "artifacts": [{"artifact_type": "technical_indicators", "schema_version": 1, "status": "ok", "data": {"symbol": "NVDA", "period": "1y", "short_window": 20, "long_window": 50}}]
+    }
+  }
+}
