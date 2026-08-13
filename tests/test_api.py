@@ -154,7 +154,7 @@ def test_missing_configuration_preserves_liveness(
 ) -> None:
     """Verify bad production configuration yields liveness and a stable 503."""
 
-    def fail_composition() -> ResearchAgentService:
+    async def fail_composition() -> tuple[ResearchAgentService, object | None]:
         raise RuntimeError("Missing GEMINI_API_KEY")
 
     async def fail_persistence() -> tuple[ThreadResearchService, object]:
@@ -199,10 +199,13 @@ def test_application_closes_owned_persistence_runtime(
     async def compose_persistence():
         return durable_service, runtime
 
+    async def compose_stateless():
+        return research_service(SuccessfulGraph()), None
+
     monkeypatch.setattr(
         api_main,
         "create_research_service",
-        lambda: research_service(SuccessfulGraph()),
+        compose_stateless,
     )
     monkeypatch.setattr(
         api_main,
@@ -218,3 +221,35 @@ def test_application_closes_owned_persistence_runtime(
     asyncio.run(enter_and_exit())
 
     assert runtime.closed is True
+
+
+def test_application_closes_owned_cache_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Production lifespan closes the optional stateless cache resources."""
+
+    class FakeCacheRuntime:
+        closed = False
+
+        async def close(self) -> None:
+            self.closed = True
+
+    cache_runtime = FakeCacheRuntime()
+
+    async def compose_stateless():
+        return research_service(SuccessfulGraph()), cache_runtime
+
+    async def fail_persistence():
+        raise RuntimeError("not configured")
+
+    monkeypatch.setattr(api_main, "create_research_service", compose_stateless)
+    monkeypatch.setattr(api_main, "create_thread_research_service", fail_persistence)
+    app = create_app()
+
+    async def enter_and_exit() -> None:
+        async with app.router.lifespan_context(app):
+            assert cache_runtime.closed is False
+
+    asyncio.run(enter_and_exit())
+
+    assert cache_runtime.closed is True

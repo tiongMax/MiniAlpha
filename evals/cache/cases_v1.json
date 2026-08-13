@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "cold_aapl_volatility",
+      "kind": "cold",
+      "prompt": "Show AAPL volatility over 1y",
+      "origin_key": "aapl_volatility_1y",
+      "expected_tier": "miss"
+    },
+    {
+      "case_id": "exact_aapl_volatility",
+      "kind": "exact_repeat",
+      "prompt": "Show AAPL volatility over 1y",
+      "origin_key": "aapl_volatility_1y",
+      "expected_tier": "exact_hit"
+    },
+    {
+      "case_id": "semantic_aapl_volatility",
+      "kind": "semantic_paraphrase",
+      "prompt": "Calculate the volatility of AAPL over 1y",
+      "origin_key": "aapl_volatility_1y",
+      "expected_tier": "semantic_hit"
+    },
+    {
+      "case_id": "near_miss_symbol",
+      "kind": "adversarial_near_miss",
+      "prompt": "Show MSFT volatility over 1y",
+      "origin_key": "msft_volatility_1y",
+      "expected_tier": "miss"
+    },
+    {
+      "case_id": "near_miss_period",
+      "kind": "adversarial_near_miss",
+      "prompt": "Show AAPL volatility over 5y",
+      "origin_key": "aapl_volatility_5y",
+      "expected_tier": "miss"
+    },
+    {
+      "case_id": "cold_aapl_overview",
+      "kind": "cold",
+      "prompt": "Research AAPL overview",
+      "origin_key": "aapl_overview",
+      "expected_tier": "miss"
+    },
+    {
+      "case_id": "exact_aapl_overview",
+      "kind": "exact_repeat",
+      "prompt": "Research AAPL overview",
+      "origin_key": "aapl_overview",
+      "expected_tier": "exact_hit"
+    },
+    {
+      "case_id": "semantic_aapl_overview",
+      "kind": "semantic_paraphrase",
+      "prompt": "Give me an AAPL company overview",
+      "origin_key": "aapl_overview",
+      "expected_tier": "semantic_hit"
+    },
+    {
+      "case_id": "relative_news_cold",
+      "kind": "relative_time",
+      "prompt": "Show the latest AAPL news",
+      "origin_key": "aapl_latest_news",
+      "expected_tier": "miss"
+    },
+    {
+      "case_id": "relative_news_exact",
+      "kind": "exact_repeat",
+      "prompt": "Show the latest AAPL news",
+      "origin_key": "aapl_latest_news",
+      "expected_tier": "exact_hit"
+    },
+    {
+      "case_id": "relative_news_paraphrase",
+      "kind": "semantic_suppressed",
+      "prompt": "Give me the latest news for AAPL",
+      "origin_key": "aapl_latest_news_paraphrase",
+      "expected_tier": "miss"
+    },
+    {
+      "case_id": "provider_error",
+      "kind": "error_not_cached",
+      "prompt": "Show ERR volatility over 1y",
+      "origin_key": "provider_error",
+      "expected_tier": "miss"
+    },
+    {
+      "case_id": "provider_error_repeat",
+      "kind": "error_not_cached",
+      "prompt": "Show ERR volatility over 1y",
+      "origin_key": "provider_error",
+      "expected_tier": "miss"
+    }
+  ]
+}

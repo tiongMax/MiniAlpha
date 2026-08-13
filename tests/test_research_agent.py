@@ -86,6 +86,48 @@ def test_extracts_answer_tool_calls_results_and_artifacts() -> None:
     assert result.checkpoint_id is None
 
 
+def test_sums_usage_metadata_across_every_model_call() -> None:
+    """Token accounting includes planning and synthesis, not only the final call."""
+    service = ResearchAgentService(cast(ResearchGraph, SuccessfulGraph()))
+    messages = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "usage-call",
+                    "name": "get_company_overview",
+                    "args": {"symbol": "AAPL"},
+                    "type": "tool_call",
+                }
+            ],
+            usage_metadata={
+                "input_tokens": 100,
+                "output_tokens": 20,
+                "total_tokens": 120,
+            },
+        ),
+        ToolMessage(
+            content="Apple Inc.",
+            tool_call_id="usage-call",
+            name="get_company_overview",
+        ),
+        AIMessage(
+            content="Apple is profitable.",
+            usage_metadata={
+                "input_tokens": 140,
+                "output_tokens": 10,
+                "total_tokens": 150,
+            },
+        ),
+    ]
+
+    result = service._extract_result(messages)
+
+    assert result.usage.input_tokens == 240
+    assert result.usage.output_tokens == 30
+    assert result.usage.total_tokens == 270
+
+
 def test_retry_success_supersedes_error_artifact_and_preserves_tool_status() -> None:
     """A corrected retry remains visible while its redundant error card is removed."""
     service = ResearchAgentService(cast(ResearchGraph, SuccessfulGraph()))

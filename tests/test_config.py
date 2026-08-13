@@ -52,6 +52,24 @@ def test_positive_integer_configuration_is_validated(
         config.get_positive_int("RUN_EVENT_RETENTION_SECONDS", 86_400)
 
 
+def test_boolean_and_float_configuration_are_strict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "load_dotenv", lambda: False)
+    monkeypatch.setenv("CACHE_ENABLED", "yes")
+    monkeypatch.setenv("CACHE_THRESHOLD", "0.92")
+
+    assert config.get_boolean("CACHE_ENABLED", False) is True
+    assert config.get_float("CACHE_THRESHOLD", 0.5) == 0.92
+
+    monkeypatch.setenv("CACHE_ENABLED", "perhaps")
+    monkeypatch.setenv("CACHE_THRESHOLD", "nan")
+    with pytest.raises(RuntimeError, match="boolean"):
+        config.get_boolean("CACHE_ENABLED", False)
+    with pytest.raises(RuntimeError, match="finite"):
+        config.get_float("CACHE_THRESHOLD", 0.5)
+
+
 def test_database_setup_uses_selector_loop_on_windows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
