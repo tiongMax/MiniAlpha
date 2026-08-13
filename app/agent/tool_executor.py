@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from app.agent.failures import FailureCategory, FailureRecovery, StructuredFailure
 from app.agent.retry import RetryPolicy
 from app.domain.errors import FinancialProviderError, FinancialProviderTimeout
+from app.observability import observe_span
 
 
 class IsolatedToolExecutor:
@@ -47,22 +48,58 @@ class IsolatedToolExecutor:
         return {"messages": list(results)}
 
     async def _execute(self, raw_call: ToolCall) -> ToolMessage:
+        """Attribute one isolated tool trajectory without recording arguments."""
+        raw_name = str(raw_call.get("name", ""))
+        name = raw_name if raw_name in self._tools else "unknown"
+        with observe_span(
+            "tool.execute",
+            run_type="tool",
+            metadata={
+                "tool_name": name,
+                "attempt_budget": self._retry.max_attempts,
+            },
+        ) as span:
+            result, attempt = await self._execute_call(raw_call)
+            artifact = result.artifact if isinstance(result.artifact, dict) else {}
+            failure = artifact.get("failure")
+            failure = failure if isinstance(failure, dict) else {}
+            if artifact.get("status") == "error":
+                span.mark_error_type(str(failure.get("code", "tool_error")))
+            span.set_attributes(
+                {
+                    "outcome": "error" if artifact.get("status") == "error" else "ok",
+                    "attempt": attempt,
+                    "attempt_count": attempt,
+                    "failure_code": failure.get("code"),
+                    "failure_category": failure.get("category"),
+                    "recovery": failure.get("recovery"),
+                }
+            )
+            return result
+
+    async def _execute_call(self, raw_call: ToolCall) -> tuple[ToolMessage, int]:
+        """Execute one tool call under the configured isolation policy."""
         call = cast(ToolCall, raw_call)
         name = str(call.get("name", ""))
         call_id = str(call.get("id") or "unknown-call")
         tool = self._tools.get(name)
         if tool is None:
-            return _failure_message(
-                name=name or "unknown",
-                call_id=call_id,
-                code="unknown_tool",
-                category="tool_input",
-                operation=name or "unknown",
-                retryable=False,
-                attempt=1,
-                max_attempts=1,
-                recovery="model_correction",
-                public_message="The requested tool is not available for this request.",
+            return (
+                _failure_message(
+                    name=name or "unknown",
+                    call_id=call_id,
+                    code="unknown_tool",
+                    category="tool_input",
+                    operation=name or "unknown",
+                    retryable=False,
+                    attempt=1,
+                    max_attempts=1,
+                    recovery="model_correction",
+                    public_message=(
+                        "The requested tool is not available for this request."
+                    ),
+                ),
+                1,
             )
 
         for attempt in range(1, self._retry.max_attempts + 1):
@@ -75,21 +112,27 @@ class IsolatedToolExecutor:
                     if attempt < self._retry.max_attempts:
                         await self._sleeper(self._retry.delay(attempt))
                         continue
-                    return _with_attempt_metadata(
-                        result,
-                        attempt=attempt,
-                        max_attempts=self._retry.max_attempts,
-                        recovery="exhausted",
-                        tool_call_id=call_id,
+                    return (
+                        _with_attempt_metadata(
+                            result,
+                            attempt=attempt,
+                            max_attempts=self._retry.max_attempts,
+                            recovery="exhausted",
+                            tool_call_id=call_id,
+                        ),
+                        attempt,
                     )
                 if _is_error_artifact(result):
-                    return _with_attempt_metadata(
-                        result,
-                        attempt=attempt,
-                        max_attempts=self._retry.max_attempts,
-                        tool_call_id=call_id,
+                    return (
+                        _with_attempt_metadata(
+                            result,
+                            attempt=attempt,
+                            max_attempts=self._retry.max_attempts,
+                            tool_call_id=call_id,
+                        ),
+                        attempt,
                     )
-                return result
+                return result, attempt
             except TimeoutError:
                 if attempt < self._retry.max_attempts:
                     await self._sleeper(self._retry.delay(attempt))
@@ -105,7 +148,7 @@ class IsolatedToolExecutor:
                     max_attempts=self._retry.max_attempts,
                     recovery="exhausted",
                     public_message="The financial tool timed out.",
-                )
+                ), attempt
             except (ValidationError, TypeError, ValueError):
                 return _failure_message(
                     name=name,
@@ -120,7 +163,7 @@ class IsolatedToolExecutor:
                     public_message=(
                         "The tool arguments were invalid; correct them and retry."
                     ),
-                )
+                ), attempt
             except FinancialProviderTimeout:
                 if attempt < self._retry.max_attempts:
                     await self._sleeper(self._retry.delay(attempt))
@@ -136,7 +179,7 @@ class IsolatedToolExecutor:
                     max_attempts=self._retry.max_attempts,
                     recovery="exhausted",
                     public_message="Financial data is temporarily unavailable.",
-                )
+                ), attempt
             except FinancialProviderError:
                 if attempt < self._retry.max_attempts:
                     await self._sleeper(self._retry.delay(attempt))
@@ -152,7 +195,7 @@ class IsolatedToolExecutor:
                     max_attempts=self._retry.max_attempts,
                     recovery="exhausted",
                     public_message="Financial data is temporarily unavailable.",
-                )
+                ), attempt
             except Exception:
                 return _failure_message(
                     name=name,
@@ -165,7 +208,7 @@ class IsolatedToolExecutor:
                     max_attempts=self._retry.max_attempts,
                     recovery="degraded",
                     public_message="The financial tool could not complete safely.",
-                )
+                ), attempt
 
 
 def _failure_message(

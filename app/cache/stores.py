@@ -17,6 +17,7 @@ from app.cache.models import (
     QueryFingerprint,
     SemanticCacheHit,
 )
+from app.observability import observe_span
 
 
 class ExactCacheStore(Protocol):
@@ -241,39 +242,72 @@ class CacheCoordinator:
         """Return the first valid hit, treating every cache error as a miss."""
         failures: list[CacheFailure] = []
         if self._exact is not None:
-            try:
-                payload = await self._exact.get(fingerprint.exact_key)
-                if payload is not None:
-                    return CacheLookup(
-                        tier="exact",
-                        payload=payload,
-                        failures=tuple(failures),
-                    )
-            except Exception as error:
-                failures.append(_failure("exact", "get", error))
+            with observe_span(
+                "cache.exact",
+                run_type="retriever",
+                metadata={"operation": "lookup", "cache_tier": "exact"},
+            ) as span:
+                try:
+                    payload = await self._exact.get(fingerprint.exact_key)
+                    span.set_attribute("cache_status", "hit" if payload else "miss")
+                    if payload is not None:
+                        return CacheLookup(
+                            tier="exact",
+                            payload=payload,
+                            failures=tuple(failures),
+                        )
+                except Exception as error:
+                    span.mark_error(error)
+                    failures.append(_failure("exact", "get", error))
 
         if not fingerprint.semantic_eligible or self._semantic is None:
             return CacheLookup(tier="miss", payload=None, failures=tuple(failures))
 
         assert self._embedder is not None
-        try:
-            embedding = await self._embedder.embed_query(fingerprint.semantic_text)
-            _validate_embedding(embedding)
-        except Exception as error:
-            failures.append(_failure("embedding", "embed", error))
-            return CacheLookup(tier="miss", payload=None, failures=tuple(failures))
+        with observe_span(
+            "cache.embedding",
+            run_type="embedding",
+            metadata={"operation": "query", "cache_tier": "embedding"},
+        ) as span:
+            try:
+                embedding = await self._embedder.embed_query(fingerprint.semantic_text)
+                _validate_embedding(embedding)
+                span.set_attributes(
+                    {
+                        "outcome": "ok",
+                        "cache_status": "generated",
+                        "dimensions": len(embedding),
+                    }
+                )
+            except Exception as error:
+                span.mark_error(error)
+                failures.append(_failure("embedding", "embed", error))
+                return CacheLookup(tier="miss", payload=None, failures=tuple(failures))
 
-        try:
-            hit = await self._semantic.lookup(
-                namespace=fingerprint.namespace,
-                constraints=fingerprint.constraints,
-                embedding=embedding,
-                threshold=self._threshold,
-                now=_utc(now or self._clock()),
-            )
-        except Exception as error:
-            failures.append(_failure("semantic", "lookup", error))
-            return CacheLookup(tier="miss", payload=None, failures=tuple(failures))
+        with observe_span(
+            "cache.semantic",
+            run_type="retriever",
+            metadata={
+                "operation": "lookup",
+                "cache_tier": "semantic",
+                "threshold": self._threshold,
+            },
+        ) as span:
+            try:
+                hit = await self._semantic.lookup(
+                    namespace=fingerprint.namespace,
+                    constraints=fingerprint.constraints,
+                    embedding=embedding,
+                    threshold=self._threshold,
+                    now=_utc(now or self._clock()),
+                )
+                span.set_attribute("cache_status", "hit" if hit else "miss")
+                if hit is not None:
+                    span.set_attribute("similarity", hit.similarity)
+            except Exception as error:
+                span.mark_error(error)
+                failures.append(_failure("semantic", "lookup", error))
+                return CacheLookup(tier="miss", payload=None, failures=tuple(failures))
         if hit is None:
             return CacheLookup(tier="miss", payload=None, failures=tuple(failures))
         if self._exact is not None:
@@ -312,36 +346,72 @@ class CacheCoordinator:
         exact_written = False
         semantic_written = False
         if self._exact is not None:
-            try:
-                await self._exact.set(fingerprint.exact_key, payload, remaining)
-                exact_written = True
-            except Exception as error:
-                failures.append(_failure("exact", "set", error))
+            with observe_span(
+                "cache.exact",
+                run_type="retriever",
+                metadata={
+                    "operation": "store",
+                    "cache_tier": "exact",
+                    "ttl_seconds": remaining,
+                },
+            ) as span:
+                try:
+                    await self._exact.set(fingerprint.exact_key, payload, remaining)
+                    exact_written = True
+                    span.set_attributes({"outcome": "ok", "cache_status": "stored"})
+                except Exception as error:
+                    span.mark_error(error)
+                    failures.append(_failure("exact", "set", error))
 
         if fingerprint.semantic_eligible and self._semantic is not None:
             assert self._embedder is not None
-            try:
-                embedding = await self._embedder.embed_document(
-                    fingerprint.semantic_text
-                )
-                _validate_embedding(embedding)
-            except Exception as error:
-                failures.append(_failure("embedding", "embed", error))
-            else:
+            with observe_span(
+                "cache.embedding",
+                run_type="embedding",
+                metadata={"operation": "document", "cache_tier": "embedding"},
+            ) as span:
                 try:
-                    await self._semantic.put(
-                        namespace=fingerprint.namespace,
-                        query_hash=fingerprint.query_hash,
-                        normalized_query=fingerprint.normalized_query,
-                        constraints=fingerprint.constraints,
-                        embedding=embedding,
-                        payload=payload,
-                        expires_at=_utc(decision.expires_at),
-                        source_retrieved_at=decision.source_retrieved_at,
+                    embedding = await self._embedder.embed_document(
+                        fingerprint.semantic_text
                     )
-                    semantic_written = True
+                    _validate_embedding(embedding)
+                    span.set_attributes(
+                        {
+                            "outcome": "ok",
+                            "cache_status": "generated",
+                            "dimensions": len(embedding),
+                        }
+                    )
                 except Exception as error:
-                    failures.append(_failure("semantic", "put", error))
+                    span.mark_error(error)
+                    failures.append(_failure("embedding", "embed", error))
+                    embedding = None
+            if embedding is not None:
+                with observe_span(
+                    "cache.semantic",
+                    run_type="retriever",
+                    metadata={
+                        "operation": "store",
+                        "cache_tier": "semantic",
+                        "ttl_seconds": remaining,
+                    },
+                ) as span:
+                    try:
+                        await self._semantic.put(
+                            namespace=fingerprint.namespace,
+                            query_hash=fingerprint.query_hash,
+                            normalized_query=fingerprint.normalized_query,
+                            constraints=fingerprint.constraints,
+                            embedding=embedding,
+                            payload=payload,
+                            expires_at=_utc(decision.expires_at),
+                            source_retrieved_at=decision.source_retrieved_at,
+                        )
+                        semantic_written = True
+                        span.set_attributes({"outcome": "ok", "cache_status": "stored"})
+                    except Exception as error:
+                        span.mark_error(error)
+                        failures.append(_failure("semantic", "put", error))
 
         return CacheWriteResult(
             exact_written=exact_written,

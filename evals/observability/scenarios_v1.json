@@ -1,0 +1,452 @@
+{
+  "schema_version": 1,
+  "contract_version": "observability-v1",
+  "required_span_names": [
+    "mini_alpha.research_run",
+    "routing.decision",
+    "model.invoke",
+    "tool.execute",
+    "cache.exact",
+    "cache.embedding",
+    "cache.semantic",
+    "provider.request",
+    "persistence.finalize"
+  ],
+  "forbidden_markers": [
+    "raw_prompt",
+    "prompt_text",
+    "user_query",
+    "aapl",
+    "msft",
+    "nvda",
+    "tsla",
+    "api_key",
+    "authorization",
+    "bearer ",
+    "password",
+    "client_secret",
+    "database_url",
+    "redis_url",
+    "postgresql://",
+    "query1.finance.yahoo.com",
+    "aiza"
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "routed_tool_success",
+      "expected_root_status": "ok",
+      "expected_failure_span_ids": [],
+      "spans": [
+        {
+          "span_id": "success-root",
+          "parent_span_id": null,
+          "name": "mini_alpha.research_run",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 0,
+          "end_ms": 540,
+          "tags": ["research", "synthetic"],
+          "attributes": {"outcome": "ok", "duration_ms": 540, "run_id_hash": "run-001"}
+        },
+        {
+          "span_id": "success-routing",
+          "parent_span_id": "success-root",
+          "name": "routing.decision",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 10,
+          "end_ms": 15,
+          "tags": ["routing"],
+          "attributes": {"outcome": "ok", "duration_ms": 5, "selected_tool_count": 2}
+        },
+        {
+          "span_id": "success-exact",
+          "parent_span_id": "success-root",
+          "name": "cache.exact",
+          "run_type": "retriever",
+          "status": "ok",
+          "start_ms": 20,
+          "end_ms": 24,
+          "tags": ["cache"],
+          "attributes": {"outcome": "miss", "duration_ms": 4, "cache_status": "miss", "cache_tier": "exact"}
+        },
+        {
+          "span_id": "success-embedding",
+          "parent_span_id": "success-root",
+          "name": "cache.embedding",
+          "run_type": "embedding",
+          "status": "ok",
+          "start_ms": 25,
+          "end_ms": 33,
+          "tags": ["cache"],
+          "attributes": {"outcome": "ok", "duration_ms": 8, "cache_status": "generated", "cache_tier": "embedding"}
+        },
+        {
+          "span_id": "success-semantic",
+          "parent_span_id": "success-root",
+          "name": "cache.semantic",
+          "run_type": "retriever",
+          "status": "ok",
+          "start_ms": 34,
+          "end_ms": 39,
+          "tags": ["cache"],
+          "attributes": {"outcome": "miss", "duration_ms": 5, "cache_status": "miss", "cache_tier": "semantic"}
+        },
+        {
+          "span_id": "success-model-plan",
+          "parent_span_id": "success-root",
+          "name": "model.invoke",
+          "run_type": "llm",
+          "status": "ok",
+          "start_ms": 45,
+          "end_ms": 95,
+          "tags": ["model"],
+          "attributes": {"outcome": "ok", "duration_ms": 50, "attempt": 1, "input_tokens": 120, "output_tokens": 20, "total_tokens": 140}
+        },
+        {
+          "span_id": "success-tool",
+          "parent_span_id": "success-root",
+          "name": "tool.execute",
+          "run_type": "tool",
+          "status": "ok",
+          "start_ms": 100,
+          "end_ms": 400,
+          "tags": ["tool"],
+          "attributes": {"outcome": "ok", "duration_ms": 300, "attempt": 1, "tool_family": "market_data"}
+        },
+        {
+          "span_id": "success-provider",
+          "parent_span_id": "success-tool",
+          "name": "provider.request",
+          "run_type": "tool",
+          "status": "ok",
+          "start_ms": 120,
+          "end_ms": 350,
+          "tags": ["provider"],
+          "attributes": {"outcome": "ok", "duration_ms": 230, "provider_operation": "price_history", "attempt": 1}
+        },
+        {
+          "span_id": "success-model-answer",
+          "parent_span_id": "success-root",
+          "name": "model.invoke",
+          "run_type": "llm",
+          "status": "ok",
+          "start_ms": 410,
+          "end_ms": 470,
+          "tags": ["model"],
+          "attributes": {"outcome": "ok", "duration_ms": 60, "attempt": 1, "input_tokens": 260, "output_tokens": 100, "total_tokens": 360}
+        },
+        {
+          "span_id": "success-persistence",
+          "parent_span_id": "success-root",
+          "name": "persistence.finalize",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 480,
+          "end_ms": 530,
+          "tags": ["persistence"],
+          "attributes": {"outcome": "ok", "duration_ms": 50, "persistence_operation": "finalize_run"}
+        }
+      ]
+    },
+    {
+      "scenario_id": "exact_cache_hit",
+      "expected_root_status": "ok",
+      "expected_failure_span_ids": [],
+      "spans": [
+        {
+          "span_id": "exact-root",
+          "parent_span_id": null,
+          "name": "mini_alpha.research_run",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 0,
+          "end_ms": 80,
+          "tags": ["research", "synthetic"],
+          "attributes": {"outcome": "ok", "duration_ms": 80, "run_id_hash": "run-002"}
+        },
+        {
+          "span_id": "exact-cache",
+          "parent_span_id": "exact-root",
+          "name": "cache.exact",
+          "run_type": "retriever",
+          "status": "ok",
+          "start_ms": 10,
+          "end_ms": 15,
+          "tags": ["cache"],
+          "attributes": {"outcome": "hit", "duration_ms": 5, "cache_status": "hit", "cache_tier": "exact"}
+        },
+        {
+          "span_id": "exact-persistence",
+          "parent_span_id": "exact-root",
+          "name": "persistence.finalize",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 20,
+          "end_ms": 30,
+          "tags": ["persistence"],
+          "attributes": {"outcome": "ok", "duration_ms": 10, "persistence_operation": "finalize_run"}
+        }
+      ]
+    },
+    {
+      "scenario_id": "semantic_cache_hit",
+      "expected_root_status": "ok",
+      "expected_failure_span_ids": [],
+      "spans": [
+        {
+          "span_id": "semantic-root",
+          "parent_span_id": null,
+          "name": "mini_alpha.research_run",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 0,
+          "end_ms": 120,
+          "tags": ["research", "synthetic"],
+          "attributes": {"outcome": "ok", "duration_ms": 120, "run_id_hash": "run-003"}
+        },
+        {
+          "span_id": "semantic-exact",
+          "parent_span_id": "semantic-root",
+          "name": "cache.exact",
+          "run_type": "retriever",
+          "status": "ok",
+          "start_ms": 10,
+          "end_ms": 14,
+          "tags": ["cache"],
+          "attributes": {"outcome": "miss", "duration_ms": 4, "cache_status": "miss", "cache_tier": "exact"}
+        },
+        {
+          "span_id": "semantic-embedding",
+          "parent_span_id": "semantic-root",
+          "name": "cache.embedding",
+          "run_type": "embedding",
+          "status": "ok",
+          "start_ms": 20,
+          "end_ms": 30,
+          "tags": ["cache"],
+          "attributes": {"outcome": "ok", "duration_ms": 10, "cache_status": "generated", "cache_tier": "embedding"}
+        },
+        {
+          "span_id": "semantic-cache",
+          "parent_span_id": "semantic-root",
+          "name": "cache.semantic",
+          "run_type": "retriever",
+          "status": "ok",
+          "start_ms": 40,
+          "end_ms": 46,
+          "tags": ["cache"],
+          "attributes": {"outcome": "hit", "duration_ms": 6, "cache_status": "hit", "cache_tier": "semantic"}
+        },
+        {
+          "span_id": "semantic-persistence",
+          "parent_span_id": "semantic-root",
+          "name": "persistence.finalize",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 60,
+          "end_ms": 70,
+          "tags": ["persistence"],
+          "attributes": {"outcome": "ok", "duration_ms": 10, "persistence_operation": "finalize_run"}
+        }
+      ]
+    },
+    {
+      "scenario_id": "provider_failure_degraded_answer",
+      "expected_root_status": "ok",
+      "expected_failure_span_ids": ["provider-failure-tool", "provider-failure-request"],
+      "spans": [
+        {
+          "span_id": "provider-failure-root",
+          "parent_span_id": null,
+          "name": "mini_alpha.research_run",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 0,
+          "end_ms": 600,
+          "tags": ["research", "synthetic"],
+          "attributes": {"outcome": "degraded", "duration_ms": 600, "run_id_hash": "run-004"}
+        },
+        {
+          "span_id": "provider-failure-routing",
+          "parent_span_id": "provider-failure-root",
+          "name": "routing.decision",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 10,
+          "end_ms": 15,
+          "tags": ["routing"],
+          "attributes": {"outcome": "ok", "duration_ms": 5, "selected_tool_count": 1}
+        },
+        {
+          "span_id": "provider-failure-model-plan",
+          "parent_span_id": "provider-failure-root",
+          "name": "model.invoke",
+          "run_type": "llm",
+          "status": "ok",
+          "start_ms": 20,
+          "end_ms": 70,
+          "tags": ["model"],
+          "attributes": {"outcome": "ok", "duration_ms": 50, "attempt": 1, "input_tokens": 100, "output_tokens": 15, "total_tokens": 115}
+        },
+        {
+          "span_id": "provider-failure-tool",
+          "parent_span_id": "provider-failure-root",
+          "name": "tool.execute",
+          "run_type": "tool",
+          "status": "error",
+          "start_ms": 80,
+          "end_ms": 370,
+          "tags": ["tool"],
+          "attributes": {"outcome": "error", "duration_ms": 290, "attempt": 2, "tool_family": "market_data", "error_type": "provider_unavailable"}
+        },
+        {
+          "span_id": "provider-failure-request",
+          "parent_span_id": "provider-failure-tool",
+          "name": "provider.request",
+          "run_type": "tool",
+          "status": "error",
+          "start_ms": 100,
+          "end_ms": 350,
+          "tags": ["provider"],
+          "attributes": {"outcome": "error", "duration_ms": 250, "provider_operation": "price_history", "attempt": 2, "error_type": "provider_timeout"}
+        },
+        {
+          "span_id": "provider-failure-model-answer",
+          "parent_span_id": "provider-failure-root",
+          "name": "model.invoke",
+          "run_type": "llm",
+          "status": "ok",
+          "start_ms": 380,
+          "end_ms": 460,
+          "tags": ["model"],
+          "attributes": {"outcome": "degraded", "duration_ms": 80, "attempt": 1, "input_tokens": 220, "output_tokens": 90, "total_tokens": 310}
+        },
+        {
+          "span_id": "provider-failure-persistence",
+          "parent_span_id": "provider-failure-root",
+          "name": "persistence.finalize",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 470,
+          "end_ms": 520,
+          "tags": ["persistence"],
+          "attributes": {"outcome": "ok", "duration_ms": 50, "persistence_operation": "finalize_run"}
+        }
+      ]
+    },
+    {
+      "scenario_id": "model_retry_then_success",
+      "expected_root_status": "ok",
+      "expected_failure_span_ids": ["model-retry-first"],
+      "spans": [
+        {
+          "span_id": "model-retry-root",
+          "parent_span_id": null,
+          "name": "mini_alpha.research_run",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 0,
+          "end_ms": 300,
+          "tags": ["research", "synthetic"],
+          "attributes": {"outcome": "ok", "duration_ms": 300, "run_id_hash": "run-005"}
+        },
+        {
+          "span_id": "model-retry-routing",
+          "parent_span_id": "model-retry-root",
+          "name": "routing.decision",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 5,
+          "end_ms": 10,
+          "tags": ["routing"],
+          "attributes": {"outcome": "ok", "duration_ms": 5, "selected_tool_count": 0}
+        },
+        {
+          "span_id": "model-retry-first",
+          "parent_span_id": "model-retry-root",
+          "name": "model.invoke",
+          "run_type": "llm",
+          "status": "error",
+          "start_ms": 20,
+          "end_ms": 50,
+          "tags": ["model"],
+          "attributes": {"outcome": "error", "duration_ms": 30, "attempt": 1, "input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "error_type": "model_timeout"}
+        },
+        {
+          "span_id": "model-retry-second",
+          "parent_span_id": "model-retry-root",
+          "name": "model.invoke",
+          "run_type": "llm",
+          "status": "ok",
+          "start_ms": 80,
+          "end_ms": 130,
+          "tags": ["model"],
+          "attributes": {"outcome": "ok", "duration_ms": 50, "attempt": 2, "input_tokens": 110, "output_tokens": 60, "total_tokens": 170}
+        },
+        {
+          "span_id": "model-retry-persistence",
+          "parent_span_id": "model-retry-root",
+          "name": "persistence.finalize",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 150,
+          "end_ms": 170,
+          "tags": ["persistence"],
+          "attributes": {"outcome": "ok", "duration_ms": 20, "persistence_operation": "finalize_run"}
+        }
+      ]
+    },
+    {
+      "scenario_id": "persistence_terminal_failure",
+      "expected_root_status": "error",
+      "expected_failure_span_ids": ["persistence-failure-root", "persistence-failure-finalize"],
+      "spans": [
+        {
+          "span_id": "persistence-failure-root",
+          "parent_span_id": null,
+          "name": "mini_alpha.research_run",
+          "run_type": "chain",
+          "status": "error",
+          "start_ms": 0,
+          "end_ms": 250,
+          "tags": ["research", "synthetic"],
+          "attributes": {"outcome": "error", "duration_ms": 250, "run_id_hash": "run-006", "error_type": "persistence_error"}
+        },
+        {
+          "span_id": "persistence-failure-routing",
+          "parent_span_id": "persistence-failure-root",
+          "name": "routing.decision",
+          "run_type": "chain",
+          "status": "ok",
+          "start_ms": 10,
+          "end_ms": 15,
+          "tags": ["routing"],
+          "attributes": {"outcome": "ok", "duration_ms": 5, "selected_tool_count": 0}
+        },
+        {
+          "span_id": "persistence-failure-model",
+          "parent_span_id": "persistence-failure-root",
+          "name": "model.invoke",
+          "run_type": "llm",
+          "status": "ok",
+          "start_ms": 20,
+          "end_ms": 80,
+          "tags": ["model"],
+          "attributes": {"outcome": "ok", "duration_ms": 60, "attempt": 1, "input_tokens": 90, "output_tokens": 40, "total_tokens": 130}
+        },
+        {
+          "span_id": "persistence-failure-finalize",
+          "parent_span_id": "persistence-failure-root",
+          "name": "persistence.finalize",
+          "run_type": "chain",
+          "status": "error",
+          "start_ms": 100,
+          "end_ms": 200,
+          "tags": ["persistence"],
+          "attributes": {"outcome": "error", "duration_ms": 100, "persistence_operation": "finalize_run", "error_type": "persistence_unavailable"}
+        }
+      ]
+    }
+  ]
+}

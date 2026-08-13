@@ -66,6 +66,14 @@ DATABASE_URL=postgresql://minialpha:minialpha@localhost:5433/minialpha
 REDIS_URL=redis://localhost:6379/0
 ```
 
+LangSmith tracing is optional and disabled by default. To export the stable,
+privacy-redacted application spans, set `LANGSMITH_TRACING=true`,
+`LANGSMITH_API_KEY`, and optionally `LANGSMITH_PROJECT`. Keep
+`LANGSMITH_HIDE_INPUTS=true` and `LANGSMITH_HIDE_OUTPUTS=true`; MiniAlpha's
+custom spans attach only bounded operational metadata such as latency, token
+counts, cache outcomes, retry attempts, and safe failure categories. See
+`docs/observability-evaluation.md` for the span contract and offline audit.
+
 Install dependencies:
 
 ```powershell

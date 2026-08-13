@@ -6,6 +6,7 @@ from typing import Literal, Protocol, cast
 from uuid import UUID
 
 from app.events.models import RunEvent, RunEventProducer
+from app.observability import observe_span
 from app.persistence.models import (
     ConversationRun,
     ConversationThread,
@@ -117,6 +118,38 @@ class ThreadResearchService:
         request_key: UUID | None,
     ) -> ThreadResearchResult:
         """Execute or idempotently replay one durable research turn."""
+        with observe_span(
+            "mini_alpha.research_run",
+            metadata={"mode": "threaded", "streaming": False},
+        ) as span:
+            try:
+                result = await self._research(
+                    message,
+                    thread_id=thread_id,
+                    request_key=request_key,
+                )
+            except ResearchExecutionError as error:
+                span.mark_error_type(error.code)
+                span.set_attributes({"outcome": "error", "failure_code": error.code})
+                raise
+            span.set_attributes(
+                {
+                    "outcome": "ok",
+                    "replayed": result.replayed,
+                    "tool_call_count": len(result.tool_calls),
+                    "artifact_count": len(result.artifacts),
+                }
+            )
+            return result
+
+    async def _research(
+        self,
+        message: str,
+        *,
+        thread_id: UUID | None,
+        request_key: UUID | None,
+    ) -> ThreadResearchResult:
+        """Execute a durable turn beneath the caller's root trace."""
         admission = await self._repository.admit_run(
             thread_id=thread_id,
             message=message,
@@ -196,6 +229,33 @@ class ThreadResearchService:
         stream: ThreadResearchStream,
     ) -> AsyncIterator[RunEvent]:
         """Produce one ordered SSE-ready run while preserving commit ordering."""
+        with observe_span(
+            "mini_alpha.research_run",
+            metadata={
+                "mode": "threaded",
+                "streaming": True,
+                "replayed": stream.replay is not None,
+            },
+        ) as span:
+            async for event in self._stream(stream):
+                if event.event == "run_end":
+                    status = str(event.data.get("status", "unknown"))
+                    failure_code = event.data.get("error_code")
+                    if status == "error":
+                        span.mark_error_type(str(failure_code or "research_failed"))
+                    span.set_attributes(
+                        {
+                            "outcome": status,
+                            "failure_code": failure_code,
+                        }
+                    )
+                yield event
+
+    async def _stream(
+        self,
+        stream: ThreadResearchStream,
+    ) -> AsyncIterator[RunEvent]:
+        """Produce SSE-ready events beneath the caller's root trace."""
         run = stream.admission.run
         producer = RunEventProducer(run_id=run.run_id, thread_id=run.thread_id)
         yield producer.emit(
