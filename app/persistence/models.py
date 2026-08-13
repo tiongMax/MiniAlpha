@@ -54,6 +54,7 @@ class StoredArtifact:
     status: Literal["ok", "error"]
     data: dict[str, object] | None
     error: str | None
+    failure: dict[str, object] | None
     created_at: datetime
 
 

@@ -189,6 +189,69 @@ def test_model_invocation_timeout_is_controlled() -> None:
         raise AssertionError("Expected ResearchExecutionError")
 
 
+class TransientModel:
+    """Time out once, then complete within the retry budget."""
+
+    def __init__(self) -> None:
+        self.attempts = 0
+
+    def bind_tools(self, _tools):
+        async def respond(_messages):
+            self.attempts += 1
+            if self.attempts == 1:
+                await asyncio.sleep(0.05)
+            return AIMessage(content="Recovered answer.")
+
+        return RunnableLambda(respond)
+
+
+def test_transient_model_timeout_retries_once() -> None:
+    model = TransientModel()
+    graph = build_graph(
+        cast(BaseChatModel, model),
+        tools=[],
+        model_timeout_seconds=0.01,
+        model_max_attempts=2,
+    )
+
+    result = asyncio.run(ResearchAgentService(graph).research("Explain volatility."))
+
+    assert result.answer == "Recovered answer."
+    assert model.attempts == 2
+
+
+class RateLimitedModel:
+    """Raise an SDK-shaped rate-limit error once, then recover."""
+
+    def __init__(self) -> None:
+        self.attempts = 0
+
+    def bind_tools(self, _tools):
+        async def respond(_messages):
+            self.attempts += 1
+            if self.attempts == 1:
+                error = RuntimeError("redacted provider failure")
+                error.status_code = 429  # type: ignore[attr-defined]
+                raise error
+            return AIMessage(content="Recovered after rate limiting.")
+
+        return RunnableLambda(respond)
+
+
+def test_transient_model_rate_limit_retries_once() -> None:
+    model = RateLimitedModel()
+    graph = build_graph(
+        cast(BaseChatModel, model),
+        tools=[],
+        model_max_attempts=2,
+    )
+
+    result = asyncio.run(ResearchAgentService(graph).research("Explain volatility."))
+
+    assert result.answer == "Recovered after rate limiting."
+    assert model.attempts == 2
+
+
 class ToolCallingModel:
     """Model double that requests one deliberately slow tool."""
 
@@ -211,7 +274,7 @@ class ToolCallingModel:
         return RunnableLambda(respond)
 
 
-def test_tool_invocation_timeout_is_controlled() -> None:
+def test_tool_invocation_timeout_becomes_reasonable_error_artifact() -> None:
     from langchain_core.tools import tool
 
     @tool
@@ -226,9 +289,8 @@ def test_tool_invocation_timeout_is_controlled() -> None:
         tool_timeout_seconds=0.001,
     )
 
-    try:
-        asyncio.run(ResearchAgentService(graph).research("Analyze Apple."))
-    except ResearchExecutionError as error:
-        assert error.code == "tool_timeout"
-    else:
-        raise AssertionError("Expected ResearchExecutionError")
+    result = asyncio.run(ResearchAgentService(graph).research("Analyze Apple."))
+
+    assert result.answer == "Done."
+    assert result.tool_calls[0].status == "error"
+    assert result.artifacts[0]["failure"]["code"] == "tool_timeout"

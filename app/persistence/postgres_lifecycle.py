@@ -93,9 +93,10 @@ class PostgresRunLifecycle:
                                 schema_version,
                                 status,
                                 data,
-                                error
+                                error,
+                                failure
                             )
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                             """,
                             (run_id, *values),
                         )
@@ -219,9 +220,10 @@ class PostgresRunLifecycle:
                                 schema_version,
                                 status,
                                 data,
-                                error
+                                error,
+                                failure
                             )
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                             """,
                             (run_id, *values),
                         )

@@ -7,7 +7,12 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from app.events.models import RunEvent
-from app.events.store import InMemoryRunEventStore, RunEventStore
+from app.events.store import (
+    EventTransportDiagnostic,
+    InMemoryRunEventStore,
+    ResilientRunEventStore,
+    RunEventStore,
+)
 from app.persistence.models import ConversationRun
 from app.persistence.repository import RunLifecycleConflictError, RunNotFoundError
 from app.services.thread_research import (
@@ -110,12 +115,18 @@ class DetachedRunManager:
         shutdown_grace_seconds: float = 10.0,
     ) -> None:
         self._service = service
-        self._event_store = event_store or InMemoryRunEventStore()
+        primary_event_store = event_store or InMemoryRunEventStore()
+        self._event_store = ResilientRunEventStore(primary_event_store)
         self._shutdown_grace_seconds = shutdown_grace_seconds
         self._channels: dict[UUID, _RunChannel] = {}
         self._queue: asyncio.Queue[ThreadResearchStream | None] = asyncio.Queue()
         self._worker: asyncio.Task[None] | None = None
         self._accepting = False
+
+    @property
+    def event_transport_diagnostics(self) -> tuple[EventTransportDiagnostic, ...]:
+        """Return bounded diagnostics for primary transport publish failures."""
+        return self._event_store.diagnostics
 
     async def start(self) -> None:
         """Start the single process-local execution worker."""
@@ -210,7 +221,7 @@ class DetachedRunManager:
         data: dict[str, object] = {"status": turn.run.status}
         if turn.run.error_code is not None:
             data["error_code"] = turn.run.error_code
-        await self._event_store.publish(
+        await self._publish_event(
             RunEvent(
                 event_id=latest.event_id + 1,
                 event="run_end",
@@ -262,7 +273,7 @@ class DetachedRunManager:
         channel.run = cancelled
         terminal = await channel.publish_terminal("cancelled")
         if terminal is not None:
-            await self._event_store.publish(terminal)
+            await self._publish_event(terminal)
         return cancelled
 
     async def _work(self) -> None:
@@ -296,7 +307,7 @@ class DetachedRunManager:
         try:
             async for event in self._service.stream(prepared):
                 if await channel.record(event):
-                    await self._event_store.publish(event)
+                    await self._publish_event(event)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -314,7 +325,17 @@ class DetachedRunManager:
                     pass
                 terminal = await channel.publish_terminal("error", "worker_failed")
                 if terminal is not None:
-                    await self._event_store.publish(terminal)
+                    await self._publish_event(terminal)
+
+    async def _publish_event(self, event: RunEvent) -> None:
+        """Deliver best-effort events without changing durable run outcomes."""
+        try:
+            await self._event_store.publish(event)
+        except Exception:
+            # ResilientRunEventStore already converts primary failures to
+            # diagnostics. This final boundary ensures an unexpected fallback
+            # defect still cannot be misclassified as a research worker failure.
+            return
 
     async def _interrupt_open_channels(self) -> None:
         """Durably fail accepted work that outlived the shutdown grace period."""
@@ -334,4 +355,4 @@ class DetachedRunManager:
                 continue
             terminal = await channel.publish_terminal("error", "process_interrupted")
             if terminal is not None:
-                await self._event_store.publish(terminal)
+                await self._publish_event(terminal)

@@ -136,6 +136,7 @@ class PostgresConversationReader:
                            status,
                            data,
                            error,
+                           failure,
                            created_at
                     FROM conversation_artifacts
                     WHERE conversation_response_id = ANY(%s)
@@ -249,6 +250,7 @@ class PostgresConversationReader:
                    status,
                    data,
                    error,
+                   failure,
                    created_at
             FROM conversation_artifacts
             WHERE conversation_response_id = %s

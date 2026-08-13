@@ -334,5 +334,6 @@ class InMemoryConversationRepository:
             status=parsed.status,
             data=parsed.data,
             error=parsed.error,
+            failure=parsed.failure,
             created_at=created_at,
         )

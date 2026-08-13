@@ -115,6 +115,7 @@ def _turn_response(turn: ConversationTurn) -> ThreadTurnResponse:
                 status=artifact.status,
                 data=artifact.data,
                 error=artifact.error,
+                failure=artifact.failure,
             )
             for artifact in turn.artifacts
         ],

@@ -145,6 +145,18 @@ def test_returns_controlled_error_as_tool_result() -> None:
 
     assert "No company data is available for UNKNOWN." in result.content
     assert result.artifact["status"] == "error"
+    assert result.artifact["error"] == "No company data is available for UNKNOWN."
+    assert result.artifact["failure"] == {
+        "schema_version": 1,
+        "code": "symbol_not_found",
+        "category": "provider",
+        "source": "yahoo_finance",
+        "operation": "company_overview",
+        "retryable": False,
+        "attempt": 1,
+        "max_attempts": 1,
+        "recovery": "model_correction",
+    }
 
 
 def test_formatter_distinguishes_missing_values_from_zero() -> None:
