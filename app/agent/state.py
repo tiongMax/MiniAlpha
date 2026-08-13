@@ -1,10 +1,19 @@
 """State shared by the custom LangGraph nodes."""
 
-from typing import Annotated
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
-from typing_extensions import TypedDict
+
+
+class RoutingState(TypedDict):
+    """Inspectable request-scoped tool routing decision."""
+
+    intents: list[str]
+    selected_tool_names: list[str]
+    mode: Literal["intent", "no_tools", "fallback_all", "fixed_all"]
+    confidence: float
+    reason: str
 
 
 class ResearchState(TypedDict):
@@ -17,3 +26,4 @@ class ResearchState(TypedDict):
     """
 
     messages: Annotated[list[AnyMessage], add_messages]
+    routing: NotRequired[RoutingState]

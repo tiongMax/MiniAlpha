@@ -35,8 +35,7 @@ class SyntheticFinancialProvider:
             dataset=dataset,
             currency="USD",
             records=tuple(
-                {"record": index + 1, "value": 100 + index}
-                for index in range(limit)
+                {"record": index + 1, "value": 100 + index} for index in range(limit)
             ),
             provider=self.provider_name,
             retrieved_at=self._timestamp(),

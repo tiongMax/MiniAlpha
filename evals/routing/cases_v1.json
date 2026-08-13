@@ -1,0 +1,916 @@
+{
+  "schema_version": 1,
+  "description": "Locked 100-query corpus for paired fixed-16 versus intent-routed live-model evaluation.",
+  "cases": [
+    {
+      "case_id": "overview_01",
+      "category": "single_intent",
+      "prompt": "Give me a concise company overview of Apple.",
+      "required_tools": [
+        "get_company_overview"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "overview_02",
+      "category": "single_intent",
+      "prompt": "Show the business profile and market snapshot for MSFT.",
+      "required_tools": [
+        "get_company_overview"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "overview_03",
+      "category": "single_intent",
+      "prompt": "Analyze NVIDIA at a high level using current company data.",
+      "required_tools": [
+        "get_company_overview"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "overview_04",
+      "category": "single_intent",
+      "prompt": "Research the basic company profile for BRK-B.",
+      "required_tools": [
+        "get_company_overview"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "price_history_01",
+      "category": "single_intent",
+      "prompt": "Retrieve AAPL historical prices for the last year.",
+      "required_tools": [
+        "get_price_history"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "price_history_02",
+      "category": "single_intent",
+      "prompt": "Show MSFT's one-month daily price history.",
+      "required_tools": [
+        "get_price_history"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "price_history_03",
+      "category": "single_intent",
+      "prompt": "Give me a two-year weekly price chart dataset for NVDA.",
+      "required_tools": [
+        "get_price_history"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "price_history_04",
+      "category": "single_intent",
+      "prompt": "Fetch SPY closing price history for six months.",
+      "required_tools": [
+        "get_price_history"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "financial_statements_01",
+      "category": "single_intent",
+      "prompt": "Retrieve Apple's yearly financial statements.",
+      "required_tools": [
+        "get_financial_statements"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "financial_statements_02",
+      "category": "single_intent",
+      "prompt": "Show Microsoft's quarterly income statement, balance sheet, and cash flow.",
+      "required_tools": [
+        "get_financial_statements"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "financial_statements_03",
+      "category": "single_intent",
+      "prompt": "Get NVIDIA annual revenue and net income statements.",
+      "required_tools": [
+        "get_financial_statements"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "financial_statements_04",
+      "category": "single_intent",
+      "prompt": "Fetch Tesla quarterly financial statements.",
+      "required_tools": [
+        "get_financial_statements"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "fundamental_ratios_01",
+      "category": "single_intent",
+      "prompt": "Show Apple's valuation and profitability ratios.",
+      "required_tools": [
+        "get_fundamental_ratios"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "fundamental_ratios_02",
+      "category": "single_intent",
+      "prompt": "Retrieve MSFT P/E and operating margin data.",
+      "required_tools": [
+        "get_fundamental_ratios"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "fundamental_ratios_03",
+      "category": "single_intent",
+      "prompt": "Get NVIDIA's fundamental ratios.",
+      "required_tools": [
+        "get_fundamental_ratios"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "fundamental_ratios_04",
+      "category": "single_intent",
+      "prompt": "Assess Tesla valuation ratios using current provider data.",
+      "required_tools": [
+        "get_fundamental_ratios"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "analyst_estimates_01",
+      "category": "single_intent",
+      "prompt": "Retrieve analyst estimates for Apple.",
+      "required_tools": [
+        "get_analyst_estimates"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "analyst_estimates_02",
+      "category": "single_intent",
+      "prompt": "Show Microsoft's consensus earnings estimates.",
+      "required_tools": [
+        "get_analyst_estimates"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "analyst_estimates_03",
+      "category": "single_intent",
+      "prompt": "Get NVIDIA analyst price targets and estimates.",
+      "required_tools": [
+        "get_analyst_estimates"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "analyst_estimates_04",
+      "category": "single_intent",
+      "prompt": "Report Tesla forward-looking analyst consensus.",
+      "required_tools": [
+        "get_analyst_estimates"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "sec_filings_01",
+      "category": "single_intent",
+      "prompt": "List Apple's five most recent SEC filings.",
+      "required_tools": [
+        "get_sec_filings"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "sec_filings_02",
+      "category": "single_intent",
+      "prompt": "Retrieve Microsoft's latest 10-K and 10-Q filing metadata.",
+      "required_tools": [
+        "get_sec_filings"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "sec_filings_03",
+      "category": "single_intent",
+      "prompt": "Show recent NVIDIA SEC filing links.",
+      "required_tools": [
+        "get_sec_filings"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "sec_filings_04",
+      "category": "single_intent",
+      "prompt": "Get Tesla's latest four filings.",
+      "required_tools": [
+        "get_sec_filings"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "ownership_01",
+      "category": "single_intent",
+      "prompt": "Show Apple's largest institutional holders.",
+      "required_tools": [
+        "get_ownership"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "ownership_02",
+      "category": "single_intent",
+      "prompt": "Retrieve Microsoft ownership data.",
+      "required_tools": [
+        "get_ownership"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "ownership_03",
+      "category": "single_intent",
+      "prompt": "Who are NVIDIA's leading shareholders?",
+      "required_tools": [
+        "get_ownership"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "ownership_04",
+      "category": "single_intent",
+      "prompt": "Get Tesla institutional ownership records.",
+      "required_tools": [
+        "get_ownership"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "insider_activity_01",
+      "category": "single_intent",
+      "prompt": "Show recent Apple insider activity.",
+      "required_tools": [
+        "get_insider_activity"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "insider_activity_02",
+      "category": "single_intent",
+      "prompt": "Retrieve Microsoft insider transactions.",
+      "required_tools": [
+        "get_insider_activity"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "insider_activity_03",
+      "category": "single_intent",
+      "prompt": "List NVIDIA insider trades.",
+      "required_tools": [
+        "get_insider_activity"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "insider_activity_04",
+      "category": "single_intent",
+      "prompt": "Get Tesla's latest insider activity.",
+      "required_tools": [
+        "get_insider_activity"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "company_news_01",
+      "category": "single_intent",
+      "prompt": "Show five recent Apple news headlines.",
+      "required_tools": [
+        "get_company_news"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "company_news_02",
+      "category": "single_intent",
+      "prompt": "Retrieve the latest Microsoft company news.",
+      "required_tools": [
+        "get_company_news"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "company_news_03",
+      "category": "single_intent",
+      "prompt": "What recent news is available for NVIDIA?",
+      "required_tools": [
+        "get_company_news"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "company_news_04",
+      "category": "single_intent",
+      "prompt": "Get eight current Tesla headlines.",
+      "required_tools": [
+        "get_company_news"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "company_comparison_01",
+      "category": "single_intent",
+      "prompt": "Compare Apple and Microsoft side by side.",
+      "required_tools": [
+        "compare_companies"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "company_comparison_02",
+      "category": "single_intent",
+      "prompt": "Give me a bounded company comparison of NVDA versus AMD.",
+      "required_tools": [
+        "compare_companies"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "company_comparison_03",
+      "category": "single_intent",
+      "prompt": "Compare Tesla, Ford, and GM fundamentals.",
+      "required_tools": [
+        "compare_companies"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "company_comparison_04",
+      "category": "single_intent",
+      "prompt": "Show a side-by-side comparison of JPM and BAC.",
+      "required_tools": [
+        "compare_companies"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "return_statistics_01",
+      "category": "single_intent",
+      "prompt": "Calculate Apple's one-year return statistics.",
+      "required_tools": [
+        "calculate_return_statistics"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "return_statistics_02",
+      "category": "single_intent",
+      "prompt": "Show Microsoft total and annualized returns over two years.",
+      "required_tools": [
+        "calculate_return_statistics"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "return_statistics_03",
+      "category": "single_intent",
+      "prompt": "Compute NVIDIA performance for the last six months.",
+      "required_tools": [
+        "calculate_return_statistics"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "return_statistics_04",
+      "category": "single_intent",
+      "prompt": "Calculate SPY five-year return statistics.",
+      "required_tools": [
+        "calculate_return_statistics"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "volatility_01",
+      "category": "single_intent",
+      "prompt": "Calculate Apple's one-year volatility.",
+      "required_tools": [
+        "calculate_volatility"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "volatility_02",
+      "category": "single_intent",
+      "prompt": "Measure Microsoft annualized risk over two years.",
+      "required_tools": [
+        "calculate_volatility"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "volatility_03",
+      "category": "single_intent",
+      "prompt": "Show NVIDIA return standard deviation for six months.",
+      "required_tools": [
+        "calculate_volatility"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "volatility_04",
+      "category": "single_intent",
+      "prompt": "Compute SPY five-year volatility and Sharpe statistics.",
+      "required_tools": [
+        "calculate_volatility"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "drawdown_01",
+      "category": "single_intent",
+      "prompt": "Analyze Apple's maximum drawdown over two years.",
+      "required_tools": [
+        "analyze_drawdowns"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "drawdown_02",
+      "category": "single_intent",
+      "prompt": "Show Microsoft peak-to-trough losses for one year.",
+      "required_tools": [
+        "analyze_drawdowns"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "drawdown_03",
+      "category": "single_intent",
+      "prompt": "Calculate NVIDIA drawdown episodes.",
+      "required_tools": [
+        "analyze_drawdowns"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "drawdown_04",
+      "category": "single_intent",
+      "prompt": "Assess SPY five-year drawdowns.",
+      "required_tools": [
+        "analyze_drawdowns"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "correlation_01",
+      "category": "single_intent",
+      "prompt": "Calculate one-year return correlation between AAPL and MSFT.",
+      "required_tools": [
+        "calculate_correlations"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "correlation_02",
+      "category": "single_intent",
+      "prompt": "Show how NVDA, AMD, and INTC returns are correlated.",
+      "required_tools": [
+        "calculate_correlations"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "correlation_03",
+      "category": "single_intent",
+      "prompt": "Compute two-year correlation for SPY and QQQ.",
+      "required_tools": [
+        "calculate_correlations"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "correlation_04",
+      "category": "single_intent",
+      "prompt": "Measure return co-movement among JPM, BAC, and C.",
+      "required_tools": [
+        "calculate_correlations"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "technical_indicators_01",
+      "category": "single_intent",
+      "prompt": "Calculate Apple's 20-day and 50-day technical indicators.",
+      "required_tools": [
+        "calculate_technical_indicators"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "technical_indicators_02",
+      "category": "single_intent",
+      "prompt": "Show Microsoft SMA, EMA, and RSI for one year.",
+      "required_tools": [
+        "calculate_technical_indicators"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "technical_indicators_03",
+      "category": "single_intent",
+      "prompt": "Compute NVIDIA 10-day and 30-day moving averages.",
+      "required_tools": [
+        "calculate_technical_indicators"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "technical_indicators_04",
+      "category": "single_intent",
+      "prompt": "Get SPY technical indicators with a 14-day RSI.",
+      "required_tools": [
+        "calculate_technical_indicators"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "moving_average_backtest_01",
+      "category": "single_intent",
+      "prompt": "Backtest a 20/50-day moving-average crossover on Apple over five years.",
+      "required_tools": [
+        "backtest_moving_average"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "moving_average_backtest_02",
+      "category": "single_intent",
+      "prompt": "Run a historical 10/40-day crossover backtest for MSFT.",
+      "required_tools": [
+        "backtest_moving_average"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "moving_average_backtest_03",
+      "category": "single_intent",
+      "prompt": "Backtest NVIDIA's 50/200-day moving-average strategy.",
+      "required_tools": [
+        "backtest_moving_average"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "moving_average_backtest_04",
+      "category": "single_intent",
+      "prompt": "Simulate a SPY 20/100-day long-cash crossover with transaction costs.",
+      "required_tools": [
+        "backtest_moving_average"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_01_overview_news",
+      "category": "multi_intent",
+      "prompt": "Give me an Apple company overview and its five latest news headlines.",
+      "required_tools": [
+        "get_company_overview",
+        "get_company_news"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_02_overview_returns",
+      "category": "multi_intent",
+      "prompt": "Analyze Microsoft at a high level and calculate its one-year returns.",
+      "required_tools": [
+        "get_company_overview",
+        "calculate_return_statistics"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_03_ratios_estimates",
+      "category": "multi_intent",
+      "prompt": "Review NVIDIA valuation ratios and analyst estimates.",
+      "required_tools": [
+        "get_fundamental_ratios",
+        "get_analyst_estimates"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_04_statements_ratios",
+      "category": "multi_intent",
+      "prompt": "Retrieve Tesla yearly financial statements and fundamental ratios.",
+      "required_tools": [
+        "get_financial_statements",
+        "get_fundamental_ratios"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_05_ownership_insiders",
+      "category": "multi_intent",
+      "prompt": "Show Apple institutional ownership and recent insider activity.",
+      "required_tools": [
+        "get_ownership",
+        "get_insider_activity"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_06_news_filings",
+      "category": "multi_intent",
+      "prompt": "Review Microsoft recent news and its latest SEC filings.",
+      "required_tools": [
+        "get_company_news",
+        "get_sec_filings"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_07_price_technicals",
+      "category": "multi_intent",
+      "prompt": "Retrieve NVIDIA one-year price history and calculate 20/50-day technical indicators.",
+      "required_tools": [
+        "get_price_history",
+        "calculate_technical_indicators"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_08_compare_correlation",
+      "category": "multi_intent",
+      "prompt": "Compare AAPL and MSFT companies and calculate their return correlation.",
+      "required_tools": [
+        "compare_companies",
+        "calculate_correlations"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_09_returns_volatility",
+      "category": "multi_intent",
+      "prompt": "Calculate Tesla one-year return statistics and volatility.",
+      "required_tools": [
+        "calculate_return_statistics",
+        "calculate_volatility"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_10_risk_bundle",
+      "category": "multi_intent",
+      "prompt": "Calculate SPY returns, volatility, and drawdowns over five years.",
+      "required_tools": [
+        "calculate_return_statistics",
+        "calculate_volatility",
+        "analyze_drawdowns"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_11_overview_ratios",
+      "category": "multi_intent",
+      "prompt": "Give me an AMD overview and valuation ratios.",
+      "required_tools": [
+        "get_company_overview",
+        "get_fundamental_ratios"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_12_statements_estimates",
+      "category": "multi_intent",
+      "prompt": "Show Amazon quarterly financial statements and analyst estimates.",
+      "required_tools": [
+        "get_financial_statements",
+        "get_analyst_estimates"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_13_news_ownership",
+      "category": "multi_intent",
+      "prompt": "Retrieve Alphabet recent news and institutional ownership.",
+      "required_tools": [
+        "get_company_news",
+        "get_ownership"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_14_filings_insiders",
+      "category": "multi_intent",
+      "prompt": "Show JPMorgan latest SEC filings and insider transactions.",
+      "required_tools": [
+        "get_sec_filings",
+        "get_insider_activity"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_15_returns_technicals",
+      "category": "multi_intent",
+      "prompt": "Calculate QQQ one-year returns and 20/50-day technical indicators.",
+      "required_tools": [
+        "calculate_return_statistics",
+        "calculate_technical_indicators"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_16_volatility_drawdown",
+      "category": "multi_intent",
+      "prompt": "Measure Meta two-year volatility and maximum drawdown.",
+      "required_tools": [
+        "calculate_volatility",
+        "analyze_drawdowns"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_17_comparison_ratios",
+      "category": "multi_intent",
+      "prompt": "Compare Coca-Cola and Pepsi side by side and retrieve their valuation ratios.",
+      "required_tools": [
+        "compare_companies",
+        "get_fundamental_ratios"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_18_overview_statements_news",
+      "category": "multi_intent",
+      "prompt": "Research IBM with a company overview, yearly financial statements, and recent news.",
+      "required_tools": [
+        "get_company_overview",
+        "get_financial_statements",
+        "get_company_news"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_19_correlation_risk",
+      "category": "multi_intent",
+      "prompt": "Calculate return correlation for AAPL, MSFT, and NVDA and each company's volatility.",
+      "required_tools": [
+        "calculate_correlations",
+        "calculate_volatility"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "multi_20_backtest_risk",
+      "category": "multi_intent",
+      "prompt": "Backtest a 20/50-day moving-average crossover for SPY and analyze its drawdowns.",
+      "required_tools": [
+        "backtest_moving_average",
+        "analyze_drawdowns"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "concept_01",
+      "category": "no_tool",
+      "prompt": "Explain compound interest in simple terms.",
+      "required_tools": [],
+      "optional_tools": []
+    },
+    {
+      "case_id": "concept_02",
+      "category": "no_tool",
+      "prompt": "What is diversification?",
+      "required_tools": [],
+      "optional_tools": []
+    },
+    {
+      "case_id": "concept_03",
+      "category": "no_tool",
+      "prompt": "Define market capitalization.",
+      "required_tools": [],
+      "optional_tools": []
+    },
+    {
+      "case_id": "concept_04",
+      "category": "no_tool",
+      "prompt": "How does dollar-cost averaging work?",
+      "required_tools": [],
+      "optional_tools": []
+    },
+    {
+      "case_id": "concept_05",
+      "category": "no_tool",
+      "prompt": "Explain the difference between stocks and bonds conceptually.",
+      "required_tools": [],
+      "optional_tools": []
+    },
+    {
+      "case_id": "concept_06",
+      "category": "no_tool",
+      "prompt": "What does liquidity mean in finance?",
+      "required_tools": [],
+      "optional_tools": []
+    },
+    {
+      "case_id": "concept_07",
+      "category": "no_tool",
+      "prompt": "Define an index fund without using current market data.",
+      "required_tools": [],
+      "optional_tools": []
+    },
+    {
+      "case_id": "concept_08",
+      "category": "no_tool",
+      "prompt": "Explain why correlation does not imply causation.",
+      "required_tools": [],
+      "optional_tools": []
+    },
+    {
+      "case_id": "concept_09",
+      "category": "no_tool",
+      "prompt": "What is a limit order?",
+      "required_tools": [],
+      "optional_tools": []
+    },
+    {
+      "case_id": "concept_10",
+      "category": "no_tool",
+      "prompt": "How does inflation affect purchasing power?",
+      "required_tools": [],
+      "optional_tools": []
+    },
+    {
+      "case_id": "ambiguous_01",
+      "category": "ambiguous_fallback",
+      "prompt": "Tell me about AAPL.",
+      "required_tools": [
+        "get_company_overview"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "ambiguous_02",
+      "category": "ambiguous_fallback",
+      "prompt": "Is MSFT financially healthy?",
+      "required_tools": [
+        "get_company_overview",
+        "get_fundamental_ratios"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "ambiguous_03",
+      "category": "ambiguous_fallback",
+      "prompt": "What should I know about NVIDIA right now?",
+      "required_tools": [
+        "get_company_overview"
+      ],
+      "optional_tools": [
+        "get_company_news"
+      ]
+    },
+    {
+      "case_id": "ambiguous_04",
+      "category": "ambiguous_fallback",
+      "prompt": "Look into Tesla for me.",
+      "required_tools": [
+        "get_company_overview"
+      ],
+      "optional_tools": []
+    },
+    {
+      "case_id": "ambiguous_05",
+      "category": "ambiguous_fallback",
+      "prompt": "Investigate Amazon as an investment research subject.",
+      "required_tools": [
+        "get_company_overview"
+      ],
+      "optional_tools": [
+        "get_fundamental_ratios"
+      ]
+    },
+    {
+      "case_id": "ambiguous_06",
+      "category": "ambiguous_fallback",
+      "prompt": "Give me useful evidence on JPMorgan.",
+      "required_tools": [
+        "get_company_overview"
+      ],
+      "optional_tools": [
+        "get_fundamental_ratios"
+      ]
+    }
+  ]
+}
+

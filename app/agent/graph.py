@@ -16,9 +16,11 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.agent.errors import ModelInvocationTimeout, ToolInvocationTimeout
+from app.agent.intent_router import IntentRoute, IntentRouter
 from app.agent.nodes import route_after_model
 from app.agent.prompts import SYSTEM_PROMPT
-from app.agent.state import ResearchState
+from app.agent.state import ResearchState, RoutingState
+from app.agent.tool_registry import ToolRegistry
 from app.agent.tools import create_default_tools
 
 
@@ -29,6 +31,7 @@ def build_graph(
     checkpointer: BaseCheckpointSaver | None = None,
     model_timeout_seconds: float = 60.0,
     tool_timeout_seconds: float = 30.0,
+    enable_intent_routing: bool = True,
 ):
     """Compile MiniAlpha's explicit model-tool loop.
 
@@ -40,13 +43,55 @@ def build_graph(
             provider-free tests and alternative implementations.
         checkpointer: Optional LangGraph checkpointer used to persist graph
             state between invocations.
+        enable_intent_routing: Select a request-scoped tool subset before model
+            invocation. Disable only for paired fixed-tool baseline evaluation.
 
     Returns:
         A compiled LangGraph runnable with the topology
-        ``START -> model -> tools -> model -> END``.
+        ``START -> route_tools -> model -> tools -> model -> END``.
     """
     graph_tools = list(tools) if tools is not None else list(create_default_tools())
-    model_with_tools = model.bind_tools(graph_tools)
+    registry = ToolRegistry(graph_tools)
+    intent_router = IntentRouter(registry)
+    bound_models: dict[tuple[str, ...], object] = {}
+    tool_nodes: dict[tuple[str, ...], ToolNode] = {}
+
+    def route_tools(state: ResearchState) -> dict[str, RoutingState]:
+        """Store one inspectable request-scoped tool selection."""
+        route = (
+            intent_router.route(state)
+            if enable_intent_routing
+            else IntentRoute(
+                intents=("fixed_all",),
+                selected_tool_names=registry.names,
+                mode="fixed_all",
+                confidence=1.0,
+                reason="Fixed-tool baseline exposes every registered tool.",
+            )
+        )
+        return {"routing": route.to_state()}  # type: ignore[return-value]
+
+    def selected_names(state: ResearchState) -> tuple[str, ...]:
+        routing = state.get("routing")
+        if routing is None:
+            return registry.names
+        return tuple(routing["selected_tool_names"])
+
+    def bound_model(names: tuple[str, ...]):
+        """Bind schemas once per distinct request-scoped tool subset."""
+        runnable = bound_models.get(names)
+        if runnable is None:
+            runnable = model.bind_tools(list(registry.resolve(names)))
+            bound_models[names] = runnable
+        return runnable
+
+    def selected_tool_node(names: tuple[str, ...]) -> ToolNode:
+        """Create one executor containing exactly the model-visible tools."""
+        node = tool_nodes.get(names)
+        if node is None:
+            node = ToolNode(list(registry.resolve(names)))
+            tool_nodes[names] = node
+        return node
 
     async def call_model(state: ResearchState) -> ResearchState:
         """Invoke the tool-bound model with transient system instructions.
@@ -62,6 +107,7 @@ def build_graph(
             SystemMessage(content=SYSTEM_PROMPT),
             *state["messages"],
         ]
+        model_with_tools = bound_model(selected_names(state))
         try:
             async with asyncio.timeout(model_timeout_seconds):
                 streamed: AIMessage | AIMessageChunk | None = None
@@ -82,23 +128,23 @@ def build_graph(
         )
         return {"messages": [response]}
 
-    tool_node = ToolNode(graph_tools)
-
     async def call_tools(state: ResearchState) -> ResearchState:
         """Run one tool step within its configured deadline."""
         try:
             async with asyncio.timeout(tool_timeout_seconds):
-                return await tool_node.ainvoke(state)
+                return await selected_tool_node(selected_names(state)).ainvoke(state)
         except TimeoutError as error:
             raise ToolInvocationTimeout(
                 f"A tool exceeded its {tool_timeout_seconds:g}s deadline."
             ) from error
 
     builder = StateGraph(ResearchState)
+    builder.add_node("route_tools", route_tools)
     builder.add_node("model", call_model)
     builder.add_node("tools", call_tools)
 
-    builder.add_edge(START, "model")
+    builder.add_edge(START, "route_tools")
+    builder.add_edge("route_tools", "model")
     builder.add_conditional_edges(
         "model",
         route_after_model,
