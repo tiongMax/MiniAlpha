@@ -123,6 +123,7 @@ def cache_service() -> ResearchResultCacheService:
             embedding_dimensions=2,
         ),
         registry=registry(),
+        clock=lambda: NOW,
     )
 
 
@@ -248,6 +249,7 @@ def test_concurrent_exact_misses_use_one_origin_generation() -> None:
             ),
             registry=registry(),
             fill_wait_seconds=1,
+            clock=lambda: NOW,
         )
         graph = CountingGraph()
         agent = ResearchAgentService(cast(ResearchGraph, graph), result_cache=cache)

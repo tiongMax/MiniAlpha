@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
@@ -38,6 +39,7 @@ class ResearchResultCacheService:
         max_payload_bytes: int = 1_000_000,
         fill_lock_seconds: int = 30,
         fill_wait_seconds: float = 30.0,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         if max_payload_bytes <= 0:
             raise ValueError("Cache payload limit must be positive.")
@@ -49,6 +51,7 @@ class ResearchResultCacheService:
         self._max_payload_bytes = max_payload_bytes
         self._fill_lock_seconds = fill_lock_seconds
         self._fill_wait_seconds = fill_wait_seconds
+        self._clock = clock or (lambda: datetime.now(UTC))
 
     async def lookup(self, message: str) -> CachedResearchResult | None:
         """Return a validated cache hit or fail open as a miss."""
@@ -69,7 +72,8 @@ class ResearchResultCacheService:
             return
         if any(call.status != "ok" for call in result.tool_calls):
             return
-        decision = evaluate_artifact_ttl(result.artifacts)
+        current = self._clock()
+        decision = evaluate_artifact_ttl(result.artifacts, now=current)
         if not decision.cacheable:
             return
         fingerprint = self._fingerprint(message)
@@ -78,7 +82,7 @@ class ResearchResultCacheService:
             decision = replace(
                 decision,
                 ttl_seconds=ttl,
-                expires_at=datetime.now(UTC) + timedelta(seconds=ttl),
+                expires_at=current + timedelta(seconds=ttl),
                 reason="relative_time_exact_ttl",
             )
         payload = serialize_research_result(result)
@@ -93,6 +97,7 @@ class ResearchResultCacheService:
             fingerprint,
             payload,
             decision,
+            now=current,
         )
 
     async def acquire_fill(self, message: str) -> CacheFillReservation:
