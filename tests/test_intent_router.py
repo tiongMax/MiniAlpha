@@ -103,6 +103,31 @@ def test_unknown_or_ambiguous_request_falls_back_to_all_tools() -> None:
     assert route.mode == "fallback_all"
 
 
+def test_vague_named_company_request_uses_a_bounded_evidence_bundle() -> None:
+    route = _router().route({"messages": [HumanMessage(content="Tell me about AAPL.")]})
+    health = _router().route(
+        {"messages": [HumanMessage(content="Is MSFT financially healthy?")]}
+    )
+    current = _router().route(
+        {
+            "messages": [
+                HumanMessage(content="What should I know about NVIDIA right now?")
+            ]
+        }
+    )
+
+    assert route.selected_tool_names == ("get_company_overview",)
+    assert health.selected_tool_names == (
+        "get_company_overview",
+        "get_fundamental_ratios",
+    )
+    assert current.selected_tool_names == (
+        "get_company_overview",
+        "get_company_news",
+    )
+    assert {route.mode, health.mode, current.mode} == {"intent"}
+
+
 def test_latest_checkpointed_user_turn_is_rerouted() -> None:
     route = _router().route(
         {

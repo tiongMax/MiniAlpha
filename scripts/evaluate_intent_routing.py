@@ -253,6 +253,7 @@ def variant_metrics(
     variant: Variant,
 ) -> dict[str, object]:
     selected = [result for result in results if result.variant == variant]
+    completed = [result for result in selected if result.completed]
     errors = sum(result.selection_error for result in selected)
     durations = sorted(result.duration_ms for result in selected)
     return {
@@ -260,6 +261,17 @@ def variant_metrics(
         "completed_trials": sum(result.completed for result in selected),
         "selection_errors": errors,
         "selection_error_rate": errors / len(selected) if selected else 0.0,
+        "model_or_client_failure_trials": sum(
+            not result.completed for result in selected
+        ),
+        "selection_errors_on_completed_trials": sum(
+            result.selection_error for result in completed
+        ),
+        "selection_error_rate_on_completed_trials": (
+            sum(result.selection_error for result in completed) / len(completed)
+            if completed
+            else 0.0
+        ),
         "missing_required_tool_trials": sum(
             bool(result.missing_required_tools) for result in selected
         ),
@@ -273,6 +285,42 @@ def variant_metrics(
             else 0.0
         ),
         "p50_duration_ms": durations[len(durations) // 2] if durations else 0.0,
+    }
+
+
+def paired_metrics(results: list[RoutingTrial]) -> dict[str, int]:
+    """Count paired outcomes only where both variants completed."""
+    pairs: dict[tuple[str, int], dict[Variant, RoutingTrial]] = {}
+    for result in results:
+        pairs.setdefault((result.case_id, result.repeat), {})[result.variant] = result
+    completed_pairs = [
+        pair
+        for pair in pairs.values()
+        if len(pair) == 2
+        and pair["fixed_16"].completed
+        and pair["intent_routed"].completed
+    ]
+    return {
+        "both_completed": len(completed_pairs),
+        "fixed_error_routed_correct": sum(
+            pair["fixed_16"].selection_error
+            and not pair["intent_routed"].selection_error
+            for pair in completed_pairs
+        ),
+        "fixed_correct_routed_error": sum(
+            not pair["fixed_16"].selection_error
+            and pair["intent_routed"].selection_error
+            for pair in completed_pairs
+        ),
+        "both_error": sum(
+            pair["fixed_16"].selection_error and pair["intent_routed"].selection_error
+            for pair in completed_pairs
+        ),
+        "both_correct": sum(
+            not pair["fixed_16"].selection_error
+            and not pair["intent_routed"].selection_error
+            for pair in completed_pairs
+        ),
     }
 
 
@@ -315,6 +363,7 @@ def build_report(
             if baseline["mean_selected_schemas"]
             else None
         ),
+        "paired_completed_outcomes": paired_metrics(results),
         "trials": [
             {**asdict(result), "calls": [asdict(call) for call in result.calls]}
             for result in results

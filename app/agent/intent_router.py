@@ -199,6 +199,21 @@ CONCEPTUAL_SIGNALS = _patterns(
     r"\bconcept\b",
 )
 
+VAGUE_COMPANY_SIGNALS = _patterns(
+    r"^\s*tell me about\s+[A-Z]{1,5}\.?\s*$",
+    r"\bfinancially healthy\b",
+    r"\bwhat should i know about\b",
+    r"\blook into\b",
+    r"\binvestigate\b",
+    r"\buseful evidence (?:on|about)\b",
+)
+
+VAGUE_COMPANY_NAME = re.compile(
+    r"\b(?:about|into|investigate|on)\s+(?:an?\s+)?[A-Z][A-Za-z]+\b"
+)
+HEALTH_SIGNALS = _patterns(r"\bfinancially healthy\b", r"\buseful evidence\b")
+IMMEDIACY_SIGNALS = _patterns(r"\bright now\b")
+
 
 class IntentRouter:
     """Map the latest user request to an explainable subset of registered tools."""
@@ -238,6 +253,26 @@ class IntentRouter:
                     confidence=1.0 if len(groups) == 1 else 0.9,
                     reason="Matched explicit financial capability signals.",
                 )
+
+        vague_company_request = any(
+            pattern.search(text) for pattern in VAGUE_COMPANY_SIGNALS
+        ) and (
+            bool(TICKER_SIGNAL.search(text)) or bool(VAGUE_COMPANY_NAME.search(text))
+        )
+        if vague_company_request:
+            inferred_groups = ["company_overview"]
+            if any(pattern.search(text) for pattern in HEALTH_SIGNALS):
+                inferred_groups.append("fundamental_ratios")
+            if any(pattern.search(text) for pattern in IMMEDIACY_SIGNALS):
+                inferred_groups.append("company_news")
+            selected = self._registry.names_for_groups(inferred_groups)
+            return IntentRoute(
+                intents=tuple(inferred_groups),
+                selected_tool_names=selected,
+                mode="intent",
+                confidence=0.75,
+                reason="Inferred a conservative evidence bundle for a named company.",
+            )
 
         return IntentRoute(
             intents=("uncertain_financial",),

@@ -91,6 +91,13 @@ def test_report_computes_paired_error_and_schema_changes() -> None:
 
     assert report["selection_error_change_percentage_points"] == -100.0
     assert report["relative_selected_schema_reduction"] == 0.75
+    assert report["paired_completed_outcomes"] == {
+        "both_completed": 1,
+        "fixed_error_routed_correct": 1,
+        "fixed_correct_routed_error": 0,
+        "both_error": 0,
+        "both_correct": 0,
+    }
 
 
 def test_routing_corpus_is_valid_json() -> None:
