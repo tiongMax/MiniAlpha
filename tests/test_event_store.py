@@ -5,7 +5,11 @@ from uuid import uuid4
 
 from app.api.sse import encode_sse_stream
 from app.events.models import RunEventProducer
-from app.events.store import InMemoryRunEventStore, RedisRunEventStore
+from app.events.store import (
+    InMemoryRunEventStore,
+    RedisRunEventStore,
+    ResilientRunEventStore,
+)
 
 
 class FakePipeline:
@@ -66,6 +70,36 @@ class FakeRedis:
 
     async def aclose(self):
         return None
+
+
+class UnavailableEventStore:
+    """Primary transport double that always rejects publication."""
+
+    async def publish(self, event):
+        raise ConnectionError("redis://user:secret@example.invalid is unavailable")
+
+    async def events(self, run_id, *, after_event_id=0):
+        if False:
+            yield
+
+    async def exists(self, run_id):
+        return False
+
+    async def latest(self, run_id):
+        return None
+
+    async def is_ready(self):
+        return False
+
+    async def close(self):
+        return None
+
+
+class HangingEventStore(UnavailableEventStore):
+    """Primary transport double that never acknowledges publication."""
+
+    async def publish(self, event):
+        await asyncio.Event().wait()
 
 
 def test_in_memory_store_replays_strictly_after_cursor() -> None:
@@ -134,6 +168,50 @@ def test_redis_store_closes_when_cursor_already_acknowledges_terminal() -> None:
         ]
 
     assert asyncio.run(exercise()) == []
+
+
+def test_resilient_store_buffers_events_and_bounds_diagnostics() -> None:
+    async def exercise():
+        store = ResilientRunEventStore(
+            UnavailableEventStore(),
+            max_buffered_events_per_run=2,
+            max_diagnostics=2,
+        )
+        producer = RunEventProducer(run_id=uuid4(), thread_id=uuid4())
+        events = [
+            producer.emit("metadata", {}),
+            producer.emit("message_chunk", {"delta": "answer"}),
+            producer.emit("run_end", {"status": "completed"}),
+        ]
+        for event in events:
+            await store.publish(event)
+        replayed = [event async for event in store.events(events[0].run_id)]
+        diagnostics = store.diagnostics
+        await store.close()
+        return replayed, diagnostics
+
+    replayed, diagnostics = asyncio.run(exercise())
+    assert [event.event_id for event in replayed] == [2, 3]
+    assert [diagnostic.event_id for diagnostic in diagnostics] == [2, 3]
+    assert {diagnostic.error_type for diagnostic in diagnostics} == {"ConnectionError"}
+    assert all(not hasattr(diagnostic, "error_message") for diagnostic in diagnostics)
+
+
+def test_resilient_store_times_out_primary_publication() -> None:
+    async def exercise():
+        store = ResilientRunEventStore(
+            HangingEventStore(),
+            publish_timeout_seconds=0.001,
+        )
+        producer = RunEventProducer(run_id=uuid4(), thread_id=uuid4())
+        terminal = producer.emit("run_end", {"status": "completed"})
+        await store.publish(terminal)
+        replayed = [event async for event in store.events(terminal.run_id)]
+        return replayed, store.diagnostics
+
+    replayed, diagnostics = asyncio.run(exercise())
+    assert replayed[0].data == {"status": "completed"}
+    assert diagnostics[0].error_type == "TimeoutError"
 
 
 def test_sse_stream_sends_keepalive_comments_while_idle() -> None:

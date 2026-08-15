@@ -35,7 +35,7 @@ RUN_COLUMNS = """
 def artifact_values(
     ordinal: int,
     artifact: Mapping[str, object],
-) -> tuple[int, str, int, str, Jsonb | None, str | None]:
+) -> tuple[int, str, int, str, Jsonb | None, str | None, Jsonb | None]:
     """Validate an artifact and build its SQL parameter tuple."""
     parsed = parse_artifact(artifact)
     return (
@@ -45,6 +45,7 @@ def artifact_values(
         parsed.status,
         Jsonb(parsed.data) if parsed.data is not None else None,
         parsed.error,
+        Jsonb(parsed.failure) if parsed.failure is not None else None,
     )
 
 
@@ -94,6 +95,7 @@ def run_from_row(row: Mapping[str, object]) -> ConversationRun:
 def artifact_from_row(row: Mapping[str, object]) -> StoredArtifact:
     """Convert one artifact row into its application record."""
     data = row["data"]
+    failure = row.get("failure")
     return StoredArtifact(
         artifact_id=cast(UUID, row["artifact_id"]),
         run_id=cast(UUID, row["conversation_response_id"]),
@@ -103,5 +105,8 @@ def artifact_from_row(row: Mapping[str, object]) -> StoredArtifact:
         status=cast(Literal["ok", "error"], row["status"]),
         data=cast(dict[str, object], data) if isinstance(data, dict) else None,
         error=cast(str | None, row["error"]),
+        failure=(
+            cast(dict[str, object], failure) if isinstance(failure, dict) else None
+        ),
         created_at=cast(datetime, row["created_at"]),
     )

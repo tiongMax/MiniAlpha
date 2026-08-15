@@ -13,13 +13,14 @@ from langchain_core.messages import (
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
-from langgraph.prebuilt import ToolNode
 
-from app.agent.errors import ModelInvocationTimeout, ToolInvocationTimeout
+from app.agent.errors import ModelInvocationTimeout
 from app.agent.intent_router import IntentRoute, IntentRouter
 from app.agent.nodes import route_after_model
 from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.retry import is_transient_model_error
 from app.agent.state import ResearchState, RoutingState
+from app.agent.tool_executor import IsolatedToolExecutor
 from app.agent.tool_registry import ToolRegistry
 from app.agent.tools import create_default_tools
 
@@ -31,6 +32,8 @@ def build_graph(
     checkpointer: BaseCheckpointSaver | None = None,
     model_timeout_seconds: float = 60.0,
     tool_timeout_seconds: float = 30.0,
+    model_max_attempts: int = 2,
+    tool_max_attempts: int = 2,
     enable_intent_routing: bool = True,
 ):
     """Compile MiniAlpha's explicit model-tool loop.
@@ -50,11 +53,13 @@ def build_graph(
         A compiled LangGraph runnable with the topology
         ``START -> route_tools -> model -> tools -> model -> END``.
     """
+    if model_max_attempts <= 0 or tool_max_attempts <= 0:
+        raise ValueError("Model and tool attempts must be positive.")
     graph_tools = list(tools) if tools is not None else list(create_default_tools())
     registry = ToolRegistry(graph_tools)
     intent_router = IntentRouter(registry)
     bound_models: dict[tuple[str, ...], object] = {}
-    tool_nodes: dict[tuple[str, ...], ToolNode] = {}
+    tool_nodes: dict[tuple[str, ...], IsolatedToolExecutor] = {}
 
     def route_tools(state: ResearchState) -> dict[str, RoutingState]:
         """Store one inspectable request-scoped tool selection."""
@@ -85,11 +90,17 @@ def build_graph(
             bound_models[names] = runnable
         return runnable
 
-    def selected_tool_node(names: tuple[str, ...]) -> ToolNode:
+    def selected_tool_node(names: tuple[str, ...]) -> IsolatedToolExecutor:
         """Create one executor containing exactly the model-visible tools."""
         node = tool_nodes.get(names)
         if node is None:
-            node = ToolNode(list(registry.resolve(names)))
+            from app.agent.retry import RetryPolicy
+
+            node = IsolatedToolExecutor(
+                list(registry.resolve(names)),
+                timeout_seconds=tool_timeout_seconds,
+                retry_policy=RetryPolicy(max_attempts=tool_max_attempts),
+            )
             tool_nodes[names] = node
         return node
 
@@ -108,17 +119,24 @@ def build_graph(
             *state["messages"],
         ]
         model_with_tools = bound_model(selected_names(state))
-        try:
-            async with asyncio.timeout(model_timeout_seconds):
-                streamed: AIMessage | AIMessageChunk | None = None
-                async for chunk in model_with_tools.astream(model_messages):
-                    if not isinstance(chunk, (AIMessage, AIMessageChunk)):
-                        continue
-                    streamed = chunk if streamed is None else streamed + chunk
-        except TimeoutError as error:
-            raise ModelInvocationTimeout(
-                f"The model exceeded its {model_timeout_seconds:g}s deadline."
-            ) from error
+        streamed: AIMessage | AIMessageChunk | None = None
+        for attempt in range(1, model_max_attempts + 1):
+            try:
+                streamed = None
+                async with asyncio.timeout(model_timeout_seconds):
+                    async for chunk in model_with_tools.astream(model_messages):
+                        if not isinstance(chunk, (AIMessage, AIMessageChunk)):
+                            continue
+                        streamed = chunk if streamed is None else streamed + chunk
+                break
+            except Exception as error:
+                if attempt >= model_max_attempts or not is_transient_model_error(error):
+                    if not isinstance(error, TimeoutError):
+                        raise
+                    raise ModelInvocationTimeout(
+                        f"The model exceeded its {model_timeout_seconds:g}s deadline."
+                    ) from error
+                await asyncio.sleep(0.2 * attempt)
         if streamed is None:
             raise RuntimeError("The model returned no message.")
         response = (
@@ -129,14 +147,8 @@ def build_graph(
         return {"messages": [response]}
 
     async def call_tools(state: ResearchState) -> ResearchState:
-        """Run one tool step within its configured deadline."""
-        try:
-            async with asyncio.timeout(tool_timeout_seconds):
-                return await selected_tool_node(selected_names(state)).ainvoke(state)
-        except TimeoutError as error:
-            raise ToolInvocationTimeout(
-                f"A tool exceeded its {tool_timeout_seconds:g}s deadline."
-            ) from error
+        """Run sibling calls with per-call deadlines and structured failures."""
+        return await selected_tool_node(selected_names(state)).ainvoke(state)
 
     builder = StateGraph(ResearchState)
     builder.add_node("route_tools", route_tools)

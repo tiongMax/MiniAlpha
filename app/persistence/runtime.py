@@ -21,7 +21,7 @@ _REQUIRED_TABLES = (
     "checkpoint_migrations",
     "semantic_research_cache",
 )
-_REQUIRED_ALEMBIC_REVISION = "004_point_2_semantic_cache"
+_REQUIRED_ALEMBIC_REVISION = "005_structured_failures"
 
 
 async def _configure_connection(connection: AsyncConnection[DictRow]) -> None:

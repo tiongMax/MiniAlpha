@@ -5,6 +5,7 @@ from collections.abc import Sequence
 
 from langchain_core.tools import BaseTool, tool
 
+from app.agent.failures import failure_for_financial_error
 from app.domain.company import CompanyOverview
 from app.domain.errors import FinancialDataError
 from app.domain.fundamentals import FundamentalDataset
@@ -219,6 +220,7 @@ def _quantitative_artifact(dataset: QuantitativeDataset) -> dict[str, object]:
 def _error_artifact(
     artifact_type: str, error: FinancialDataError
 ) -> tuple[str, dict[str, object]]:
+    failure = failure_for_financial_error(error, operation=artifact_type)
     return (
         str(error),
         {
@@ -226,6 +228,7 @@ def _error_artifact(
             "schema_version": 1,
             "status": "error",
             "error": str(error),
+            "failure": failure.to_dict(),
         },
     )
 
@@ -261,15 +264,7 @@ def create_company_overview_tool(
         try:
             overview = await service.get_company_overview(symbol)
         except FinancialDataError as error:
-            return (
-                str(error),
-                {
-                    "artifact_type": "company_overview",
-                    "schema_version": 1,
-                    "status": "error",
-                    "error": str(error),
-                },
-            )
+            return _error_artifact("company_overview", error)
 
         return (
             format_company_overview(overview),
@@ -307,15 +302,7 @@ def create_price_history_tool(service: CompanyResearchService) -> BaseTool:
                 interval=interval,
             )
         except FinancialDataError as error:
-            return (
-                str(error),
-                {
-                    "artifact_type": "price_history",
-                    "schema_version": 1,
-                    "status": "error",
-                    "error": str(error),
-                },
-            )
+            return _error_artifact("price_history", error)
         return (
             format_price_history(history),
             {

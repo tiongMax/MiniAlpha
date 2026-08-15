@@ -43,6 +43,36 @@ class ControlledAgent:
         )
 
 
+class UnavailableEventStore:
+    """Redis-like transport that is unavailable for every publication."""
+
+    async def publish(self, event):
+        raise ConnectionError("Redis is unavailable")
+
+    async def events(self, run_id, *, after_event_id=0):
+        if False:
+            yield
+
+    async def exists(self, run_id):
+        return False
+
+    async def latest(self, run_id):
+        return None
+
+    async def is_ready(self):
+        return False
+
+    async def close(self):
+        return None
+
+
+class FailingCompleteRepository(InMemoryConversationRepository):
+    """Repository double proving durable completion errors remain terminal."""
+
+    async def complete_run(self, *args, **kwargs):
+        raise RuntimeError("PostgreSQL commit failed")
+
+
 def test_run_completes_without_an_attached_event_consumer() -> None:
     """Execution ownership remains with the manager, not an SSE request."""
 
@@ -71,6 +101,68 @@ def test_run_completes_without_an_attached_event_consumer() -> None:
     assert stored is not None
     assert stored.run.status == "completed"
     assert stored.run.answer == "Detached answer."
+
+
+def test_event_transport_failure_does_not_fail_a_durable_run() -> None:
+    async def exercise():
+        repository = InMemoryConversationRepository()
+        agent = ControlledAgent()
+        manager = DetachedRunManager(
+            ThreadResearchService(repository, agent),
+            event_store=UnavailableEventStore(),
+        )
+        await manager.start()
+        submission = await manager.submit(
+            "Analyze Apple.", thread_id=None, request_key=uuid4()
+        )
+        await agent.started.wait()
+        agent.release.set()
+        await manager._queue.join()
+        stored = await repository.get_turn(submission.run_id)
+        events = [event async for event in manager.events(submission.run_id)]
+        diagnostics = manager.event_transport_diagnostics
+        await manager.close()
+        return stored, events, diagnostics
+
+    stored, events, diagnostics = asyncio.run(exercise())
+    assert stored is not None
+    assert stored.run.status == "completed"
+    assert stored.run.error_code is None
+    assert [event.event for event in events] == [
+        "metadata",
+        "message_chunk",
+        "run_end",
+    ]
+    assert events[-1].data["status"] == "completed"
+    assert len(diagnostics) == 3
+    assert all(item.error_type == "ConnectionError" for item in diagnostics)
+
+
+def test_persistence_failure_still_marks_the_run_as_worker_failed() -> None:
+    async def exercise():
+        repository = FailingCompleteRepository()
+        agent = ControlledAgent()
+        manager = DetachedRunManager(ThreadResearchService(repository, agent))
+        await manager.start()
+        submission = await manager.submit(
+            "Analyze Apple.", thread_id=None, request_key=uuid4()
+        )
+        await agent.started.wait()
+        agent.release.set()
+        await manager._queue.join()
+        stored = await repository.get_turn(submission.run_id)
+        events = [event async for event in manager.events(submission.run_id)]
+        await manager.close()
+        return stored, events
+
+    stored, events = asyncio.run(exercise())
+    assert stored is not None
+    assert stored.run.status == "error"
+    assert stored.run.error_code == "worker_failed"
+    assert events[-1].data == {
+        "status": "error",
+        "error_code": "worker_failed",
+    }
 
 
 def test_disconnect_does_not_cancel_background_execution() -> None:

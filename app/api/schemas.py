@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ResearchRequest(BaseModel):
@@ -40,6 +40,38 @@ class ToolCallResponse(BaseModel):
     summary: str | None = None
 
 
+class FailureResponse(BaseModel):
+    """Safe, machine-readable recovery facts for one failed operation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1]
+    code: str = Field(min_length=1, max_length=100, pattern=r"^\S+$")
+    category: Literal["tool_input", "provider", "tool_runtime"]
+    source: str = Field(min_length=1, max_length=100, pattern=r"^\S+$")
+    operation: str = Field(min_length=1, max_length=100, pattern=r"^\S+$")
+    retryable: bool
+    attempt: int = Field(ge=1)
+    max_attempts: int = Field(ge=1)
+    recovery: Literal[
+        "model_correction",
+        "retry",
+        "exhausted",
+        "degraded",
+        "continue_without_tool",
+    ]
+    tool_call_id: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def validate_recovery(self) -> "FailureResponse":
+        """Reject impossible retry budgets in direct stateless responses."""
+        if self.attempt > self.max_attempts:
+            raise ValueError("attempt must not exceed max_attempts")
+        if self.recovery == "retry" and not self.retryable:
+            raise ValueError("retry recovery requires retryable=true")
+        return self
+
+
 class ArtifactResponse(BaseModel):
     """Structured artifact emitted by an agent tool."""
 
@@ -62,6 +94,10 @@ class ArtifactResponse(BaseModel):
     error: str | None = Field(
         default=None,
         description="Safe error message when status is error.",
+    )
+    failure: FailureResponse | None = Field(
+        default=None,
+        description="Versioned recovery metadata when status is error.",
     )
 
 

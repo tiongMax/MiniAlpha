@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {"case_id":"provider_transient_timeout_01","category":"provider","mode":"transient","recoverable":true},
+    {"case_id":"provider_transient_timeout_02","category":"provider","mode":"transient","recoverable":true},
+    {"case_id":"provider_transient_unavailable_01","category":"provider","mode":"transient","recoverable":true},
+    {"case_id":"provider_transient_rate_limit_01","category":"provider","mode":"transient","recoverable":true},
+    {"case_id":"provider_persistent_timeout_01","category":"provider","mode":"persistent","recoverable":true},
+    {"case_id":"provider_persistent_timeout_02","category":"provider","mode":"persistent","recoverable":true},
+    {"case_id":"provider_persistent_unavailable_01","category":"provider","mode":"persistent","recoverable":true},
+    {"case_id":"provider_persistent_rate_limit_01","category":"provider","mode":"persistent","recoverable":true},
+    {"case_id":"provider_symbol_not_found_01","category":"provider","mode":"not_found","recoverable":true},
+    {"case_id":"provider_symbol_not_found_02","category":"provider","mode":"not_found","recoverable":true},
+    {"case_id":"tool_timeout_sibling_success_01","category":"provider","mode":"partial","recoverable":true},
+    {"case_id":"tool_error_sibling_success_01","category":"provider","mode":"partial","recoverable":true},
+    {"case_id":"tool_all_fail_qualified_01","category":"provider","mode":"all_fail","recoverable":true},
+    {"case_id":"tool_internal_error_01","category":"provider","mode":"internal","recoverable":true},
+
+    {"case_id":"malformed_missing_symbol_01","category":"tool_input","mode":"correctable","recoverable":true},
+    {"case_id":"malformed_wrong_symbol_type_01","category":"tool_input","mode":"correctable","recoverable":true},
+    {"case_id":"malformed_invalid_period_01","category":"tool_input","mode":"correctable","recoverable":true},
+    {"case_id":"malformed_invalid_interval_01","category":"tool_input","mode":"correctable","recoverable":true},
+    {"case_id":"malformed_invalid_limit_01","category":"tool_input","mode":"correctable","recoverable":true},
+    {"case_id":"malformed_invalid_frequency_01","category":"tool_input","mode":"correctable","recoverable":true},
+    {"case_id":"malformed_unknown_tool_01","category":"tool_input","mode":"correctable","recoverable":true},
+    {"case_id":"malformed_bad_window_01","category":"tool_input","mode":"correctable","recoverable":true},
+    {"case_id":"malformed_bad_cost_01","category":"tool_input","mode":"correctable","recoverable":true},
+    {"case_id":"malformed_repeated_invalid_01","category":"tool_input","mode":"persistent","recoverable":true},
+
+    {"case_id":"cache_redis_read_01","category":"cache","mode":"fail_open","recoverable":true},
+    {"case_id":"cache_redis_write_01","category":"cache","mode":"fail_open","recoverable":true},
+    {"case_id":"cache_corrupt_entry_01","category":"cache","mode":"fail_open","recoverable":true},
+    {"case_id":"cache_embedding_01","category":"cache","mode":"fail_open","recoverable":true},
+    {"case_id":"cache_pgvector_read_01","category":"cache","mode":"fail_open","recoverable":true},
+    {"case_id":"cache_pgvector_write_01","category":"cache","mode":"fail_open","recoverable":true},
+
+    {"case_id":"model_transient_timeout_01","category":"model","mode":"transient","recoverable":true},
+    {"case_id":"model_transient_rate_limit_01","category":"model","mode":"transient","recoverable":true},
+    {"case_id":"model_persistent_timeout_01","category":"model","mode":"terminal","recoverable":false},
+    {"case_id":"model_auth_01","category":"model","mode":"terminal","recoverable":false},
+    {"case_id":"model_empty_response_01","category":"model","mode":"terminal","recoverable":false},
+    {"case_id":"model_protocol_01","category":"model","mode":"terminal","recoverable":false},
+
+    {"case_id":"redis_publish_transient_01","category":"events","mode":"fail_open","recoverable":true},
+    {"case_id":"redis_publish_persistent_01","category":"events","mode":"fail_open","recoverable":true},
+    {"case_id":"redis_replay_read_01","category":"events","mode":"fail_open","recoverable":true},
+    {"case_id":"redis_event_timeout_01","category":"events","mode":"fail_open","recoverable":true},
+
+    {"case_id":"postgres_admission_01","category":"persistence","mode":"terminal","recoverable":false},
+    {"case_id":"postgres_checkpoint_write_01","category":"persistence","mode":"terminal","recoverable":false},
+    {"case_id":"postgres_precommit_finalize_01","category":"persistence","mode":"terminal","recoverable":false},
+    {"case_id":"postgres_postcommit_ambiguous_01","category":"persistence","mode":"reconcile","recoverable":true},
+    {"case_id":"postgres_failure_persist_01","category":"persistence","mode":"terminal","recoverable":false},
+    {"case_id":"postgres_conflict_01","category":"persistence","mode":"terminal","recoverable":false},
+    {"case_id":"postgres_artifact_write_01","category":"persistence","mode":"terminal","recoverable":false},
+    {"case_id":"postgres_unavailable_01","category":"persistence","mode":"terminal","recoverable":false},
+
+    {"case_id":"worker_exception_01","category":"worker","mode":"terminal","recoverable":false},
+    {"case_id":"process_interruption_01","category":"worker","mode":"terminal","recoverable":false}
+  ]
+}

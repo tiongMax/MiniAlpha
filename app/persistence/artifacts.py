@@ -4,6 +4,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal, cast
 
+from app.agent.failures import parse_structured_failure
+
 
 @dataclass(frozen=True, slots=True)
 class ParsedArtifact:
@@ -14,6 +16,7 @@ class ParsedArtifact:
     status: Literal["ok", "error"]
     data: dict[str, object] | None
     error: str | None
+    failure: dict[str, object] | None
 
 
 def parse_artifact(artifact: Mapping[str, object]) -> ParsedArtifact:
@@ -40,16 +43,30 @@ def parse_artifact(artifact: Mapping[str, object]) -> ParsedArtifact:
 
     raw_data = artifact.get("data")
     raw_error = artifact.get("error")
+    raw_failure = artifact.get("failure")
     if status == "ok":
-        if not isinstance(raw_data, dict) or raw_error is not None:
-            raise ValueError("Successful artifacts require data and no error.")
+        if (
+            not isinstance(raw_data, dict)
+            or raw_error is not None
+            or raw_failure is not None
+        ):
+            raise ValueError(
+                "Successful artifacts require data and no error or failure."
+            )
         data = cast(dict[str, object], raw_data)
         error = None
+        failure = None
     else:
         if raw_data is not None or not isinstance(raw_error, str) or not raw_error:
             raise ValueError("Error artifacts require an error and no data.")
         data = None
         error = raw_error
+        if raw_failure is None:
+            failure = None
+        elif isinstance(raw_failure, Mapping):
+            failure = parse_structured_failure(raw_failure).to_dict()
+        else:
+            raise ValueError("Artifact failure must be a structured object.")
 
     return ParsedArtifact(
         artifact_type=artifact_type,
@@ -57,4 +74,5 @@ def parse_artifact(artifact: Mapping[str, object]) -> ParsedArtifact:
         status=status,
         data=data,
         error=error,
+        failure=failure,
     )
