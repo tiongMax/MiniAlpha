@@ -48,6 +48,7 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         """Compose production dependencies once while preserving liveness."""
         owned_runtime = None
+        owned_cache_runtime = None
         owned_event_store = None
         run_manager = None
         if research_service is not None:
@@ -58,7 +59,10 @@ def create_app(
             app.state.persistence_startup_failed = thread_research_service is None
         else:
             try:
-                app.state.research_service = create_research_service()
+                (
+                    app.state.research_service,
+                    owned_cache_runtime,
+                ) = await create_research_service()
                 app.state.research_startup_failed = False
             except RuntimeError:
                 app.state.research_service = None
@@ -117,6 +121,8 @@ def create_app(
                 await owned_event_store.close()
             if owned_runtime is not None:
                 await owned_runtime.close()
+            if owned_cache_runtime is not None:
+                await owned_cache_runtime.close()
 
     api = FastAPI(
         title="MiniAlpha API",

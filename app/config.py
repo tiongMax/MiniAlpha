@@ -63,6 +63,30 @@ def get_timeout_seconds(name: str, default: float) -> float:
     return value
 
 
+def get_boolean(name: str, default: bool) -> bool:
+    """Return a strict boolean environment setting."""
+    load_dotenv()
+    raw_value = os.getenv(name, str(default)).strip().casefold()
+    if raw_value in {"1", "true", "yes", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(f"{name} must be a boolean.")
+
+
+def get_float(name: str, default: float) -> float:
+    """Return a finite floating-point environment setting."""
+    load_dotenv()
+    raw_value = os.getenv(name, str(default)).strip()
+    try:
+        value = float(raw_value)
+    except ValueError as error:
+        raise RuntimeError(f"{name} must be a number.") from error
+    if not value == value or value in {float("inf"), float("-inf")}:
+        raise RuntimeError(f"{name} must be finite.")
+    return value
+
+
 def create_model() -> "ChatGoogleGenerativeAI":
     """Create the Gemini chat model configured through environment variables.
 

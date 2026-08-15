@@ -1,0 +1,287 @@
+{
+  "generated_at": "2026-08-13T12:31:51.311601+00:00",
+  "dataset_sha256": "dcbdd6bdcdce72ab1415a4f904e64a515e99b6e8ec4ff7b384c9b1892fee0195",
+  "metric_scope": "generation tokens only; embeddings are deterministic local vectors",
+  "cache_disabled": {
+    "requests": 13,
+    "generation_tokens": 1300,
+    "correct_outcomes": 13,
+    "exact_hits": 0,
+    "semantic_hits": 0,
+    "p50_duration_ms": 15.507
+  },
+  "cache_enabled": {
+    "requests": 13,
+    "generation_tokens": 800,
+    "correct_outcomes": 13,
+    "exact_hits": 3,
+    "semantic_hits": 2,
+    "p50_duration_ms": 14.934
+  },
+  "generation_token_reduction": 0.38461538461538464,
+  "warm_exact_p50_ms": 0.279,
+  "cold_miss_p50_ms": 15.2095,
+  "false_semantic_hits": 0,
+  "trials": [
+    {
+      "variant": "cache_disabled",
+      "case_id": "cold_aapl_volatility",
+      "kind": "cold",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 16.098
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "exact_aapl_volatility",
+      "kind": "exact_repeat",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.338
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "semantic_aapl_volatility",
+      "kind": "semantic_paraphrase",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.221
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "near_miss_symbol",
+      "kind": "adversarial_near_miss",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.827
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "near_miss_period",
+      "kind": "adversarial_near_miss",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 16.071
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "cold_aapl_overview",
+      "kind": "cold",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.471
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "exact_aapl_overview",
+      "kind": "exact_repeat",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.43
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "semantic_aapl_overview",
+      "kind": "semantic_paraphrase",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.238
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "relative_news_cold",
+      "kind": "relative_time",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.614
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "relative_news_exact",
+      "kind": "exact_repeat",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.342
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "relative_news_paraphrase",
+      "kind": "semantic_suppressed",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.792
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "provider_error",
+      "kind": "error_not_cached",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.75
+    },
+    {
+      "variant": "cache_disabled",
+      "case_id": "provider_error_repeat",
+      "kind": "error_not_cached",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.507
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "cold_aapl_volatility",
+      "kind": "cold",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 16.974
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "exact_aapl_volatility",
+      "kind": "exact_repeat",
+      "expected_tier": "exact_hit",
+      "observed_tier": "exact_hit",
+      "correct": true,
+      "generation_tokens": 0,
+      "duration_ms": 0.25
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "semantic_aapl_volatility",
+      "kind": "semantic_paraphrase",
+      "expected_tier": "semantic_hit",
+      "observed_tier": "semantic_hit",
+      "correct": true,
+      "generation_tokens": 0,
+      "duration_ms": 0.313
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "near_miss_symbol",
+      "kind": "adversarial_near_miss",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.117
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "near_miss_period",
+      "kind": "adversarial_near_miss",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 14.934
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "cold_aapl_overview",
+      "kind": "cold",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.241
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "exact_aapl_overview",
+      "kind": "exact_repeat",
+      "expected_tier": "exact_hit",
+      "observed_tier": "exact_hit",
+      "correct": true,
+      "generation_tokens": 0,
+      "duration_ms": 0.279
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "semantic_aapl_overview",
+      "kind": "semantic_paraphrase",
+      "expected_tier": "semantic_hit",
+      "observed_tier": "semantic_hit",
+      "correct": true,
+      "generation_tokens": 0,
+      "duration_ms": 0.327
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "relative_news_cold",
+      "kind": "relative_time",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 14.782
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "relative_news_exact",
+      "kind": "exact_repeat",
+      "expected_tier": "exact_hit",
+      "observed_tier": "exact_hit",
+      "correct": true,
+      "generation_tokens": 0,
+      "duration_ms": 0.346
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "relative_news_paraphrase",
+      "kind": "semantic_suppressed",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 16.145
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "provider_error",
+      "kind": "error_not_cached",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.178
+    },
+    {
+      "variant": "cache_enabled",
+      "case_id": "provider_error_repeat",
+      "kind": "error_not_cached",
+      "expected_tier": "miss",
+      "observed_tier": "miss",
+      "correct": true,
+      "generation_tokens": 100,
+      "duration_ms": 15.511
+    }
+  ]
+}

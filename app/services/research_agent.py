@@ -1,7 +1,7 @@
 """Application service for stateless and checkpointed graph execution."""
 
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Literal, Protocol, cast
 from uuid import UUID
 
@@ -34,6 +34,23 @@ class ExecutedToolResult:
 
 
 @dataclass(frozen=True, slots=True)
+class ModelUsage:
+    """Generation tokens consumed by one request."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchCacheInfo:
+    """Cache outcome while retaining the cost of the originating response."""
+
+    status: Literal["miss", "exact_hit", "semantic_hit"]
+    origin_usage: ModelUsage | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ResearchResult:
     """Transport-neutral result of a completed research run."""
 
@@ -42,6 +59,52 @@ class ResearchResult:
     tool_results: tuple[ExecutedToolResult, ...]
     artifacts: tuple[dict[str, object], ...]
     checkpoint_id: str | None
+    usage: ModelUsage = field(default_factory=ModelUsage)
+    cache: ResearchCacheInfo | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CachedResearchResult:
+    """A valid cached response and the tier that resolved it."""
+
+    result: ResearchResult
+    status: Literal["exact_hit", "semantic_hit"]
+
+
+@dataclass(frozen=True, slots=True)
+class CacheFillReservation:
+    """Ownership of an optional cross-process cache fill lock."""
+
+    owner: bool
+    token: str | None = None
+
+
+class ResearchResultCache(Protocol):
+    """Fail-open result-cache behavior used by stateless requests only."""
+
+    async def lookup(self, message: str) -> CachedResearchResult | None:
+        """Return a valid unexpired match or ``None``."""
+        ...
+
+    async def store(self, message: str, result: ResearchResult) -> None:
+        """Best-effort store of a successful result."""
+        ...
+
+    async def acquire_fill(self, message: str) -> CacheFillReservation:
+        """Reserve an origin fill when distributed locking is available."""
+        ...
+
+    async def wait_for_fill(self, message: str) -> CachedResearchResult | None:
+        """Wait briefly for another owner to populate the result."""
+        ...
+
+    async def release_fill(
+        self,
+        message: str,
+        reservation: CacheFillReservation,
+    ) -> None:
+        """Release a reservation owned by this request."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,14 +199,64 @@ class ResearchAgentService:
         graph: ResearchGraph,
         *,
         recursion_limit: int = 12,
+        result_cache: ResearchResultCache | None = None,
     ) -> None:
         """Store a compiled graph and its per-request recursion budget."""
         self._graph = graph
         self._recursion_limit = recursion_limit
+        self._result_cache = result_cache
 
     async def research(self, message: str) -> ResearchResult:
         """Run one independent user message through the research graph."""
-        return await self._execute(message, context=None)
+        reservation: CacheFillReservation | None = None
+        if self._result_cache is not None:
+            try:
+                cached = await self._result_cache.lookup(message)
+            except Exception:
+                cached = None
+            if cached is not None:
+                return self._cache_hit_result(cached)
+            try:
+                reservation = await self._result_cache.acquire_fill(message)
+                if not reservation.owner:
+                    cached = await self._result_cache.wait_for_fill(message)
+                    if cached is not None:
+                        return self._cache_hit_result(cached)
+                    reservation = None
+            except Exception:
+                reservation = None
+
+        try:
+            result = await self._execute(message, context=None)
+            if self._result_cache is not None:
+                try:
+                    await self._result_cache.store(message, result)
+                except Exception:
+                    pass
+                return replace(
+                    result,
+                    cache=ResearchCacheInfo(status="miss", origin_usage=result.usage),
+                )
+            return result
+        finally:
+            if self._result_cache is not None and reservation is not None:
+                try:
+                    await self._result_cache.release_fill(message, reservation)
+                except Exception:
+                    pass
+
+    @staticmethod
+    def _cache_hit_result(cached: CachedResearchResult) -> ResearchResult:
+        """Return a hit with zero current generation usage."""
+        return replace(
+            cached.result,
+            checkpoint_id=None,
+            usage=ModelUsage(),
+            cache=ResearchCacheInfo(
+                status=cached.status,
+                origin_usage=cached.result.usage,
+            ),
+        )
 
     async def research_thread(
         self,
@@ -335,6 +448,8 @@ class ResearchAgentService:
                 tool_results=result.tool_results,
                 artifacts=result.artifacts,
                 checkpoint_id=checkpoint,
+                usage=result.usage,
+                cache=result.cache,
             )
         )
 
@@ -378,6 +493,8 @@ class ResearchAgentService:
             tool_results=result.tool_results,
             artifacts=result.artifacts,
             checkpoint_id=checkpoint_id,
+            usage=result.usage,
+            cache=result.cache,
         )
 
     def _extract_result(self, messages: list[AnyMessage]) -> ResearchResult:
@@ -387,9 +504,16 @@ class ResearchAgentService:
         tool_results: list[ExecutedToolResult] = []
         artifacts: list[dict[str, object]] = []
         call_positions: dict[str, int] = {}
+        input_tokens = 0
+        output_tokens = 0
+        total_tokens = 0
 
         for graph_message in messages:
             if isinstance(graph_message, AIMessage):
+                usage = graph_message.usage_metadata or {}
+                input_tokens += self._usage_value(usage, "input_tokens")
+                output_tokens += self._usage_value(usage, "output_tokens")
+                total_tokens += self._usage_value(usage, "total_tokens")
                 for call in graph_message.tool_calls:
                     raw_arguments = call.get("args", {})
                     arguments = (
@@ -456,7 +580,20 @@ class ResearchAgentService:
             tool_results=tuple(tool_results),
             artifacts=self._without_superseded_errors(artifacts),
             checkpoint_id=None,
+            usage=ModelUsage(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+            ),
         )
+
+    @staticmethod
+    def _usage_value(usage: object, key: str) -> int:
+        """Read a non-negative LangChain usage counter defensively."""
+        if not isinstance(usage, dict):
+            return 0
+        value = usage.get(key, 0)
+        return value if isinstance(value, int) and value >= 0 else 0
 
     @staticmethod
     def _record_tool_outcome(
