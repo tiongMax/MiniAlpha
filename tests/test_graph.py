@@ -92,6 +92,77 @@ def test_graph_executes_tool_then_returns_final_answer() -> None:
     assert not any(isinstance(message, SystemMessage) for message in messages)
 
 
+class RecordingFinalModel:
+    """Record the request-scoped schemas bound before returning a final answer."""
+
+    def __init__(self) -> None:
+        self.bound_tool_names: list[tuple[str, ...]] = []
+
+    def bind_tools(self, tools):
+        self.bound_tool_names.append(tuple(tool.name for tool in tools))
+
+        async def respond(_messages):
+            return AIMessage(content="Done.")
+
+        return RunnableLambda(respond)
+
+
+def test_graph_binds_only_request_relevant_tools() -> None:
+    from langchain_core.tools import tool
+
+    @tool
+    async def get_company_news(symbol: str) -> str:
+        """Return synthetic company news."""
+        return symbol
+
+    @tool
+    async def calculate_volatility(symbol: str) -> str:
+        """Return synthetic volatility."""
+        return symbol
+
+    model = RecordingFinalModel()
+    graph = build_graph(
+        cast(BaseChatModel, model),
+        tools=[get_company_news, calculate_volatility],
+    )
+
+    result = asyncio.run(
+        graph.ainvoke({"messages": [HumanMessage(content="Show AAPL news.")]})
+    )
+
+    assert model.bound_tool_names == [("get_company_news",)]
+    assert result["routing"]["selected_tool_names"] == ["get_company_news"]
+    assert result["routing"]["mode"] == "intent"
+
+
+def test_graph_fixed_baseline_binds_every_tool() -> None:
+    from langchain_core.tools import tool
+
+    @tool
+    async def get_company_news(symbol: str) -> str:
+        """Return synthetic company news."""
+        return symbol
+
+    @tool
+    async def calculate_volatility(symbol: str) -> str:
+        """Return synthetic volatility."""
+        return symbol
+
+    model = RecordingFinalModel()
+    graph = build_graph(
+        cast(BaseChatModel, model),
+        tools=[get_company_news, calculate_volatility],
+        enable_intent_routing=False,
+    )
+
+    result = asyncio.run(
+        graph.ainvoke({"messages": [HumanMessage(content="Show AAPL news.")]})
+    )
+
+    assert model.bound_tool_names == [("get_company_news", "calculate_volatility")]
+    assert result["routing"]["mode"] == "fixed_all"
+
+
 class SlowModel:
     """Model double that exceeds a short execution deadline."""
 

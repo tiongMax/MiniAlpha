@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "maximum_regression": {
+    "tool_selection_f1": 0.02,
+    "tool_argument_accuracy": 0.02,
+    "numerical_accuracy": 0.01,
+    "answer_element_completion": 0.02,
+    "duplicate_tool_calls": 0.0,
+    "unnecessary_tool_calls": 0.0
+  }
+}

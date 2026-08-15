@@ -577,8 +577,33 @@ def create_moving_average_backtest_tool(
     return backtest_moving_average
 
 
+def create_financial_tools(
+    company_service: CompanyResearchService,
+    quantitative_service: QuantitativeResearchService,
+) -> Sequence[BaseTool]:
+    """Compose all 16 tools from injected provider-neutral services."""
+    return [
+        create_company_overview_tool(company_service),
+        create_price_history_tool(company_service),
+        create_financial_statements_tool(company_service),
+        create_fundamental_ratios_tool(company_service),
+        create_analyst_estimates_tool(company_service),
+        create_sec_filings_tool(company_service),
+        create_ownership_tool(company_service),
+        create_insider_activity_tool(company_service),
+        create_company_news_tool(company_service),
+        create_company_comparison_tool(company_service),
+        create_return_statistics_tool(quantitative_service),
+        create_volatility_tool(quantitative_service),
+        create_drawdown_tool(quantitative_service),
+        create_correlation_tool(quantitative_service),
+        create_technical_indicators_tool(quantitative_service),
+        create_moving_average_backtest_tool(quantitative_service),
+    ]
+
+
 def create_default_tools() -> Sequence[BaseTool]:
-    """Compose the production tools and their dependencies.
+    """Compose production tools and their Yahoo-backed dependencies.
 
     Returns:
         Complete Yahoo-backed fundamental and deterministic quantitative toolset.
@@ -586,21 +611,4 @@ def create_default_tools() -> Sequence[BaseTool]:
     provider = YahooFinanceProvider()
     service = CompanyResearchService(provider)
     quantitative = QuantitativeResearchService(service)
-    return [
-        create_company_overview_tool(service),
-        create_price_history_tool(service),
-        create_financial_statements_tool(service),
-        create_fundamental_ratios_tool(service),
-        create_analyst_estimates_tool(service),
-        create_sec_filings_tool(service),
-        create_ownership_tool(service),
-        create_insider_activity_tool(service),
-        create_company_news_tool(service),
-        create_company_comparison_tool(service),
-        create_return_statistics_tool(quantitative),
-        create_volatility_tool(quantitative),
-        create_drawdown_tool(quantitative),
-        create_correlation_tool(quantitative),
-        create_technical_indicators_tool(quantitative),
-        create_moving_average_backtest_tool(quantitative),
-    ]
+    return create_financial_tools(service, quantitative)
