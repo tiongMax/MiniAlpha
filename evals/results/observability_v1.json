@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "contract_version": "observability-v1",
+  "evaluation_type": "credential-free synthetic span-contract validation",
+  "dataset_sha256": "1f50b66f22c5ef9cb685fd8694b6d0df45d06086af69ffe496329c0583bbeaf3",
+  "scenario_count": 6,
+  "span_count": 34,
+  "required_span_coverage": {
+    "research_root": {
+      "span_name": "mini_alpha.research_run",
+      "span_count": 6,
+      "scenario_count": 6
+    },
+    "routing": {
+      "span_name": "routing.decision",
+      "span_count": 4,
+      "scenario_count": 4
+    },
+    "model": {
+      "span_name": "model.invoke",
+      "span_count": 7,
+      "scenario_count": 4
+    },
+    "tool": {
+      "span_name": "tool.execute",
+      "span_count": 2,
+      "scenario_count": 2
+    },
+    "cache_exact": {
+      "span_name": "cache.exact",
+      "span_count": 3,
+      "scenario_count": 3
+    },
+    "cache_embedding": {
+      "span_name": "cache.embedding",
+      "span_count": 2,
+      "scenario_count": 2
+    },
+    "cache_semantic": {
+      "span_name": "cache.semantic",
+      "span_count": 2,
+      "scenario_count": 2
+    },
+    "provider": {
+      "span_name": "provider.request",
+      "span_count": 2,
+      "scenario_count": 2
+    },
+    "persistence": {
+      "span_name": "persistence.finalize",
+      "span_count": 6,
+      "scenario_count": 6
+    }
+  },
+  "parent_child_attribution": {
+    "rooted_scenarios": 6,
+    "total_scenarios": 6,
+    "valid_parent_links": 28,
+    "total_parent_links": 28,
+    "provider_tool_parent_links": 2
+  },
+  "latency_attribution": {
+    "spans_with_numeric_duration": 34,
+    "total_spans": 34,
+    "duration_ms_by_span_name": {
+      "mini_alpha.research_run": 1890,
+      "routing.decision": 20,
+      "model.invoke": 380,
+      "tool.execute": 590,
+      "cache.exact": 13,
+      "cache.embedding": 18,
+      "cache.semantic": 11,
+      "provider.request": 480,
+      "persistence.finalize": 240
+    }
+  },
+  "token_attribution": {
+    "model_spans_with_numeric_usage": 7,
+    "total_model_spans": 7,
+    "input_tokens": 900,
+    "output_tokens": 325,
+    "total_tokens": 1225
+  },
+  "failure_attribution": {
+    "expected_error_spans": 5,
+    "observed_error_spans": 5,
+    "correctly_attributed_error_spans": 5
+  },
+  "privacy_scan": {
+    "scanned_spans": 34,
+    "forbidden_marker_count": 17,
+    "privacy_hits": 0
+  },
+  "violation_counts": {},
+  "violations": [],
+  "passed": true
+}

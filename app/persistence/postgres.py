@@ -7,6 +7,7 @@ from psycopg import AsyncConnection
 from psycopg.rows import DictRow
 from psycopg_pool import AsyncConnectionPool
 
+from app.observability import observe_span
 from app.persistence.models import (
     ConversationRun,
     ConversationThread,
@@ -56,14 +57,24 @@ class PostgresConversationRepository:
         artifacts: Sequence[dict[str, object]],
     ) -> ConversationTurn:
         """Finalize a run and publish its graph checkpoint with CAS."""
-        return await self._lifecycle.complete_run(
-            run_id,
-            expected_checkpoint_id=expected_checkpoint_id,
-            checkpoint_id=checkpoint_id,
-            answer=answer,
-            tool_calls=tool_calls,
-            artifacts=artifacts,
-        )
+        with observe_span(
+            "persistence.finalize",
+            metadata={
+                "persistence_operation": "complete_run",
+                "tool_call_count": len(tool_calls),
+                "artifact_count": len(artifacts),
+            },
+        ) as span:
+            result = await self._lifecycle.complete_run(
+                run_id,
+                expected_checkpoint_id=expected_checkpoint_id,
+                checkpoint_id=checkpoint_id,
+                answer=answer,
+                tool_calls=tool_calls,
+                artifacts=artifacts,
+            )
+            span.set_attribute("outcome", "ok")
+            return result
 
     async def fail_run(
         self,
@@ -73,11 +84,20 @@ class PostgresConversationRepository:
         error_message: str,
     ) -> ConversationRun:
         """Mark a run failed without publishing a graph checkpoint."""
-        return await self._lifecycle.fail_run(
-            run_id,
-            error_code=error_code,
-            error_message=error_message,
-        )
+        with observe_span(
+            "persistence.finalize",
+            metadata={
+                "persistence_operation": "fail_run",
+                "failure_code": error_code,
+            },
+        ) as span:
+            result = await self._lifecycle.fail_run(
+                run_id,
+                error_code=error_code,
+                error_message=error_message,
+            )
+            span.set_attribute("outcome", "ok")
+            return result
 
     async def recover_abandoned_runs(self) -> int:
         """Fail runs left active by a previously terminated API process."""
@@ -92,12 +112,22 @@ class PostgresConversationRepository:
         artifacts: Sequence[dict[str, object]] = (),
     ) -> ConversationRun:
         """Finalize a cancelled run without publishing a checkpoint."""
-        return await self._lifecycle.cancel_run(
-            run_id,
-            partial_answer=partial_answer,
-            tool_calls=tool_calls,
-            artifacts=artifacts,
-        )
+        with observe_span(
+            "persistence.finalize",
+            metadata={
+                "persistence_operation": "cancel_run",
+                "tool_call_count": len(tool_calls),
+                "artifact_count": len(artifacts),
+            },
+        ) as span:
+            result = await self._lifecycle.cancel_run(
+                run_id,
+                partial_answer=partial_answer,
+                tool_calls=tool_calls,
+                artifacts=artifacts,
+            )
+            span.set_attribute("outcome", "ok")
+            return result
 
     async def get_thread(self, thread_id: UUID) -> ConversationThread | None:
         """Return one PostgreSQL-backed thread."""

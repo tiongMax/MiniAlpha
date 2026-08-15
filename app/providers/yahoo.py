@@ -17,6 +17,7 @@ from app.domain.errors import (
 )
 from app.domain.fundamentals import FundamentalDataset
 from app.domain.prices import PriceHistory, PricePoint
+from app.observability import observe_span
 
 
 class _StringKeyed(Protocol):
@@ -192,21 +193,32 @@ class YahooFinanceProvider:
                 market-cap data.
             FinancialProviderError: If any other upstream failure occurs.
         """
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(self._fetch, symbol),
-                timeout=self.timeout_seconds,
-            )
-        except TimeoutError as error:
-            raise FinancialProviderTimeout(
-                f"Yahoo Finance timed out while looking up {symbol}."
-            ) from error
-        except SymbolNotFoundError:
-            raise
-        except Exception as error:
-            raise FinancialProviderError(
-                f"Yahoo Finance could not retrieve data for {symbol}."
-            ) from error
+        with observe_span(
+            "provider.request",
+            run_type="tool",
+            metadata={
+                "provider": "yahoo_finance",
+                "provider_operation": "overview",
+                "attempt": 1,
+            },
+        ) as span:
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(self._fetch, symbol),
+                    timeout=self.timeout_seconds,
+                )
+                span.set_attribute("outcome", "ok")
+                return result
+            except TimeoutError as error:
+                raise FinancialProviderTimeout(
+                    f"Yahoo Finance timed out while looking up {symbol}."
+                ) from error
+            except SymbolNotFoundError:
+                raise
+            except Exception as error:
+                raise FinancialProviderError(
+                    f"Yahoo Finance could not retrieve data for {symbol}."
+                ) from error
 
     async def get_price_history(
         self,
@@ -216,26 +228,39 @@ class YahooFinanceProvider:
         interval: str,
     ) -> PriceHistory:
         """Retrieve normalized Yahoo OHLCV history off the event loop."""
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(
-                    self._fetch_price_history,
-                    symbol,
-                    period,
-                    interval,
-                ),
-                timeout=self.timeout_seconds,
-            )
-        except TimeoutError as error:
-            raise FinancialProviderTimeout(
-                f"Yahoo Finance timed out while retrieving prices for {symbol}."
-            ) from error
-        except SymbolNotFoundError:
-            raise
-        except Exception as error:
-            raise FinancialProviderError(
-                f"Yahoo Finance could not retrieve prices for {symbol}."
-            ) from error
+        with observe_span(
+            "provider.request",
+            run_type="tool",
+            metadata={
+                "provider": "yahoo_finance",
+                "provider_operation": "price_history",
+                "attempt": 1,
+            },
+        ) as span:
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self._fetch_price_history,
+                        symbol,
+                        period,
+                        interval,
+                    ),
+                    timeout=self.timeout_seconds,
+                )
+                span.set_attributes(
+                    {"outcome": "ok", "record_count": len(result.points)}
+                )
+                return result
+            except TimeoutError as error:
+                raise FinancialProviderTimeout(
+                    f"Yahoo Finance timed out while retrieving prices for {symbol}."
+                ) from error
+            except SymbolNotFoundError:
+                raise
+            except Exception as error:
+                raise FinancialProviderError(
+                    f"Yahoo Finance could not retrieve prices for {symbol}."
+                ) from error
 
     async def _get_dataset(
         self,
@@ -245,21 +270,37 @@ class YahooFinanceProvider:
         *args: object,
     ) -> FundamentalDataset:
         """Run one blocking fundamental lookup with consistent translation."""
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(fetch, symbol, *args),
-                timeout=self.timeout_seconds,
-            )
-        except TimeoutError as error:
-            raise FinancialProviderTimeout(
-                f"Yahoo Finance timed out while retrieving {description} for {symbol}."
-            ) from error
-        except SymbolNotFoundError:
-            raise
-        except Exception as error:
-            raise FinancialProviderError(
-                f"Yahoo Finance could not retrieve {description} for {symbol}."
-            ) from error
+        operation = description.casefold().replace(" ", "_")
+        with observe_span(
+            "provider.request",
+            run_type="tool",
+            metadata={
+                "provider": "yahoo_finance",
+                "provider_operation": operation,
+                "attempt": 1,
+            },
+        ) as span:
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(fetch, symbol, *args),
+                    timeout=self.timeout_seconds,
+                )
+                span.set_attributes(
+                    {"outcome": "ok", "record_count": len(result.records)}
+                )
+                return result
+            except TimeoutError as error:
+                timeout_message = (
+                    "Yahoo Finance timed out while retrieving "
+                    f"{description} for {symbol}."
+                )
+                raise FinancialProviderTimeout(timeout_message) from error
+            except SymbolNotFoundError:
+                raise
+            except Exception as error:
+                raise FinancialProviderError(
+                    f"Yahoo Finance could not retrieve {description} for {symbol}."
+                ) from error
 
     async def get_financial_statements(
         self, symbol: str, *, frequency: str

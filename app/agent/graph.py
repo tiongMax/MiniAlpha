@@ -23,6 +23,7 @@ from app.agent.state import ResearchState, RoutingState
 from app.agent.tool_executor import IsolatedToolExecutor
 from app.agent.tool_registry import ToolRegistry
 from app.agent.tools import create_default_tools
+from app.observability import observe_span
 
 
 def build_graph(
@@ -63,17 +64,31 @@ def build_graph(
 
     def route_tools(state: ResearchState) -> dict[str, RoutingState]:
         """Store one inspectable request-scoped tool selection."""
-        route = (
-            intent_router.route(state)
-            if enable_intent_routing
-            else IntentRoute(
-                intents=("fixed_all",),
-                selected_tool_names=registry.names,
-                mode="fixed_all",
-                confidence=1.0,
-                reason="Fixed-tool baseline exposes every registered tool.",
+        with observe_span(
+            "routing.decision",
+            metadata={"routing_enabled": enable_intent_routing},
+        ) as span:
+            route = (
+                intent_router.route(state)
+                if enable_intent_routing
+                else IntentRoute(
+                    intents=("fixed_all",),
+                    selected_tool_names=registry.names,
+                    mode="fixed_all",
+                    confidence=1.0,
+                    reason="Fixed-tool baseline exposes every registered tool.",
+                )
             )
-        )
+            span.set_attributes(
+                {
+                    "outcome": "ok",
+                    "routing_mode": route.mode,
+                    "intent_count": len(route.intents),
+                    "selected_tool_count": len(route.selected_tool_names),
+                    "available_tool_count": len(registry.names),
+                    "confidence": route.confidence,
+                }
+            )
         return {"routing": route.to_state()}  # type: ignore[return-value]
 
     def selected_names(state: ResearchState) -> tuple[str, ...]:
@@ -114,37 +129,57 @@ def build_graph(
             A state update containing only the new model response. LangGraph's
             message reducer merges it into the existing conversation.
         """
+        names = selected_names(state)
         model_messages = [
             SystemMessage(content=SYSTEM_PROMPT),
             *state["messages"],
         ]
-        model_with_tools = bound_model(selected_names(state))
-        streamed: AIMessage | AIMessageChunk | None = None
+        model_with_tools = bound_model(names)
         for attempt in range(1, model_max_attempts + 1):
             try:
-                streamed = None
-                async with asyncio.timeout(model_timeout_seconds):
-                    async for chunk in model_with_tools.astream(model_messages):
-                        if not isinstance(chunk, (AIMessage, AIMessageChunk)):
-                            continue
-                        streamed = chunk if streamed is None else streamed + chunk
-                break
+                with observe_span(
+                    "model.invoke",
+                    run_type="llm",
+                    metadata={
+                        "attempt": attempt,
+                        "attempt_budget": model_max_attempts,
+                        "selected_tool_count": len(names),
+                    },
+                ) as span:
+                    streamed = None
+                    async with asyncio.timeout(model_timeout_seconds):
+                        async for chunk in model_with_tools.astream(model_messages):
+                            if not isinstance(chunk, (AIMessage, AIMessageChunk)):
+                                continue
+                            streamed = chunk if streamed is None else streamed + chunk
+                    if streamed is None:
+                        raise RuntimeError("The model returned no message.")
+                    response = (
+                        message_chunk_to_message(streamed)
+                        if isinstance(streamed, AIMessageChunk)
+                        else streamed
+                    )
+                    usage = response.usage_metadata or {}
+                    span.set_attributes(
+                        {
+                            "outcome": "ok",
+                            "input_tokens": int(usage.get("input_tokens", 0) or 0),
+                            "output_tokens": int(usage.get("output_tokens", 0) or 0),
+                            "total_tokens": int(usage.get("total_tokens", 0) or 0),
+                            "requested_tool_call_count": len(response.tool_calls),
+                        }
+                    )
+                    return {"messages": [response]}
             except Exception as error:
                 if attempt >= model_max_attempts or not is_transient_model_error(error):
                     if not isinstance(error, TimeoutError):
                         raise
-                    raise ModelInvocationTimeout(
+                    timeout_message = (
                         f"The model exceeded its {model_timeout_seconds:g}s deadline."
-                    ) from error
+                    )
+                    raise ModelInvocationTimeout(timeout_message) from error
                 await asyncio.sleep(0.2 * attempt)
-        if streamed is None:
-            raise RuntimeError("The model returned no message.")
-        response = (
-            message_chunk_to_message(streamed)
-            if isinstance(streamed, AIMessageChunk)
-            else streamed
-        )
-        return {"messages": [response]}
+        raise AssertionError("unreachable model retry state")
 
     async def call_tools(state: ResearchState) -> ResearchState:
         """Run sibling calls with per-call deadlines and structured failures."""

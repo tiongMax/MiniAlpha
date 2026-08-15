@@ -12,6 +12,7 @@ from langgraph.types import StateSnapshot
 from app.agent.content import text_content
 from app.agent.errors import ModelInvocationTimeout, ToolInvocationTimeout
 from app.agent.state import ResearchState
+from app.observability import observe_span
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,6 +209,21 @@ class ResearchAgentService:
 
     async def research(self, message: str) -> ResearchResult:
         """Run one independent user message through the research graph."""
+        with observe_span(
+            "mini_alpha.research_run",
+            metadata={"mode": "stateless", "streaming": False},
+        ) as span:
+            try:
+                result = await self._research_stateless(message)
+            except ResearchExecutionError as error:
+                span.mark_error_type(error.code)
+                span.set_attributes({"outcome": "error", "failure_code": error.code})
+                raise
+            span.set_attributes(self._result_span_attributes(result))
+            return result
+
+    async def _research_stateless(self, message: str) -> ResearchResult:
+        """Resolve a stateless result while the caller owns the root span."""
         reservation: CacheFillReservation | None = None
         if self._result_cache is not None:
             try:
@@ -452,6 +468,22 @@ class ResearchAgentService:
                 cache=result.cache,
             )
         )
+
+    @staticmethod
+    def _result_span_attributes(result: ResearchResult) -> dict[str, object]:
+        """Return aggregate, content-free attribution for a completed run."""
+        return {
+            "outcome": "ok",
+            "cache_status": result.cache.status if result.cache is not None else "none",
+            "input_tokens": result.usage.input_tokens,
+            "output_tokens": result.usage.output_tokens,
+            "total_tokens": result.usage.total_tokens,
+            "tool_call_count": len(result.tool_calls),
+            "tool_error_count": sum(
+                call.status == "error" for call in result.tool_calls
+            ),
+            "artifact_count": len(result.artifacts),
+        }
 
     async def _execute(
         self,
