@@ -441,6 +441,7 @@ class ThreadResearchService:
     @staticmethod
     def _artifact_envelope(artifact: StoredArtifact) -> dict[str, object]:
         envelope: dict[str, object] = {
+            "artifact_id": str(artifact.artifact_id),
             "artifact_type": artifact.artifact_type,
             "schema_version": artifact.schema_version,
             "status": artifact.status,
@@ -449,4 +450,6 @@ class ThreadResearchService:
             envelope["data"] = artifact.data
         if artifact.error is not None:
             envelope["error"] = artifact.error
+        if artifact.provenance is not None:
+            envelope["provenance"] = artifact.provenance
         return envelope

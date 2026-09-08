@@ -35,16 +35,18 @@ RUN_COLUMNS = """
 def artifact_values(
     ordinal: int,
     artifact: Mapping[str, object],
-) -> tuple[int, str, int, str, Jsonb | None, str | None]:
+) -> tuple[UUID | None, int, str, int, str, Jsonb | None, str | None, Jsonb | None]:
     """Validate an artifact and build its SQL parameter tuple."""
     parsed = parse_artifact(artifact)
     return (
+        parsed.artifact_id,
         ordinal,
         parsed.artifact_type,
         parsed.schema_version,
         parsed.status,
         Jsonb(parsed.data) if parsed.data is not None else None,
         parsed.error,
+        Jsonb(parsed.provenance) if parsed.provenance is not None else None,
     )
 
 
@@ -103,5 +105,10 @@ def artifact_from_row(row: Mapping[str, object]) -> StoredArtifact:
         status=cast(Literal["ok", "error"], row["status"]),
         data=cast(dict[str, object], data) if isinstance(data, dict) else None,
         error=cast(str | None, row["error"]),
+        provenance=(
+            cast(dict[str, object], row["provenance"])
+            if isinstance(row["provenance"], dict)
+            else None
+        ),
         created_at=cast(datetime, row["created_at"]),
     )

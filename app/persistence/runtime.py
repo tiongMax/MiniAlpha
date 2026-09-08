@@ -20,7 +20,7 @@ _REQUIRED_TABLES = (
     "checkpoint_writes",
     "checkpoint_migrations",
 )
-_REQUIRED_ALEMBIC_REVISION = "003_phase_7_partial_cancel"
+_REQUIRED_ALEMBIC_REVISION = "004_grounding_provenance"
 
 
 async def _configure_connection(connection: AsyncConnection[DictRow]) -> None:

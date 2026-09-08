@@ -110,11 +110,13 @@ def _turn_response(turn: ConversationTurn) -> ThreadTurnResponse:
         tool_calls=[_stored_tool_call_response(call) for call in turn.run.tool_calls],
         artifacts=[
             ArtifactResponse(
+                artifact_id=artifact.artifact_id,
                 artifact_type=artifact.artifact_type,
                 schema_version=artifact.schema_version,
                 status=artifact.status,
                 data=artifact.data,
                 error=artifact.error,
+                provenance=artifact.provenance,
             )
             for artifact in turn.artifacts
         ],

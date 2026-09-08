@@ -10,6 +10,7 @@ from app.domain.errors import FinancialDataError
 from app.domain.fundamentals import FundamentalDataset
 from app.domain.prices import PriceHistory
 from app.domain.quantitative import QuantitativeDataset
+from app.grounding.provenance import attach_provenance
 from app.providers.yahoo import YahooFinanceProvider
 from app.services.company_research import CompanyResearchService
 from app.services.quantitative_research import QuantitativeResearchService
@@ -173,12 +174,14 @@ def format_fundamental_dataset(dataset: FundamentalDataset) -> str:
 
 
 def _dataset_artifact(dataset: FundamentalDataset) -> dict[str, object]:
-    return {
-        "artifact_type": dataset.dataset,
-        "schema_version": 1,
-        "status": "ok",
-        "data": dataset.to_dict(),
-    }
+    return attach_provenance(
+        {
+            "artifact_type": dataset.dataset,
+            "schema_version": 1,
+            "status": "ok",
+            "data": dataset.to_dict(),
+        }
+    )
 
 
 def format_quantitative_dataset(dataset: QuantitativeDataset) -> str:
@@ -208,12 +211,14 @@ def format_quantitative_dataset(dataset: QuantitativeDataset) -> str:
 
 
 def _quantitative_artifact(dataset: QuantitativeDataset) -> dict[str, object]:
-    return {
-        "artifact_type": dataset.analysis,
-        "schema_version": 1,
-        "status": "ok",
-        "data": dataset.to_dict(),
-    }
+    return attach_provenance(
+        {
+            "artifact_type": dataset.analysis,
+            "schema_version": 1,
+            "status": "ok",
+            "data": dataset.to_dict(),
+        }
+    )
 
 
 def _error_artifact(
@@ -221,12 +226,14 @@ def _error_artifact(
 ) -> tuple[str, dict[str, object]]:
     return (
         str(error),
-        {
-            "artifact_type": artifact_type,
-            "schema_version": 1,
-            "status": "error",
-            "error": str(error),
-        },
+        attach_provenance(
+            {
+                "artifact_type": artifact_type,
+                "schema_version": 1,
+                "status": "error",
+                "error": str(error),
+            }
+        ),
     )
 
 
@@ -261,24 +268,18 @@ def create_company_overview_tool(
         try:
             overview = await service.get_company_overview(symbol)
         except FinancialDataError as error:
-            return (
-                str(error),
-                {
-                    "artifact_type": "company_overview",
-                    "schema_version": 1,
-                    "status": "error",
-                    "error": str(error),
-                },
-            )
+            return _error_artifact("company_overview", error)
 
         return (
             format_company_overview(overview),
-            {
-                "artifact_type": "company_overview",
-                "schema_version": 1,
-                "status": "ok",
-                "data": overview.to_dict(),
-            },
+            attach_provenance(
+                {
+                    "artifact_type": "company_overview",
+                    "schema_version": 1,
+                    "status": "ok",
+                    "data": overview.to_dict(),
+                }
+            ),
         )
 
     return get_company_overview
@@ -307,23 +308,17 @@ def create_price_history_tool(service: CompanyResearchService) -> BaseTool:
                 interval=interval,
             )
         except FinancialDataError as error:
-            return (
-                str(error),
+            return _error_artifact("price_history", error)
+        return (
+            format_price_history(history),
+            attach_provenance(
                 {
                     "artifact_type": "price_history",
                     "schema_version": 1,
-                    "status": "error",
-                    "error": str(error),
-                },
-            )
-        return (
-            format_price_history(history),
-            {
-                "artifact_type": "price_history",
-                "schema_version": 1,
-                "status": "ok",
-                "data": history.to_dict(),
-            },
+                    "status": "ok",
+                    "data": history.to_dict(),
+                }
+            ),
         )
 
     return get_price_history
