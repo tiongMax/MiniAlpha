@@ -2,7 +2,7 @@
   "schema_version": 1,
   "contract_version": "observability-v1",
   "evaluation_type": "credential-free synthetic span-contract validation",
-  "dataset_sha256": "1f50b66f22c5ef9cb685fd8694b6d0df45d06086af69ffe496329c0583bbeaf3",
+  "dataset_sha256": "6f225b70f4e51b56a12ddc6d7933f37a8ecf935adf8a1df899b860259685d4e2",
   "scenario_count": 6,
   "span_count": 34,
   "required_span_coverage": {
