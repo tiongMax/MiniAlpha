@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
   Activity,
+  Bookmark,
   Bot,
   ChevronRight,
   Menu,
@@ -16,6 +17,7 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ArtifactStack } from './artifacts/ArtifactRenderer'
 import { useResearchChat } from './chat/useResearchChat'
+import { PersonalResearchPanel } from './personal/PersonalResearchPanel'
 import type { ChatTurn, ToolCall } from './types'
 
 function formatDate(value: string): string {
@@ -156,6 +158,7 @@ export default function App() {
   const chat = useResearchChat()
   const [input, setInput] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [personalOpen, setPersonalOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -178,7 +181,10 @@ export default function App() {
         <header className="topbar">
           <button className="icon-button mobile-only" onClick={() => setSidebarOpen(true)} aria-label="Open menu"><Menu size={20} /></button>
           <div><strong>{chat.threadId ? 'Research thread' : 'New research'}</strong><span><i className="online-dot" /> API via live SSE</span></div>
-          {chat.threadId && <button className="topbar-new" onClick={chat.newThread} disabled={chat.streaming}><Plus size={15} /> New</button>}
+          <div className="topbar-actions">
+            <button className="topbar-personal" onClick={() => setPersonalOpen(true)}><Bookmark size={15} /> My research</button>
+            {chat.threadId && <button className="topbar-new" onClick={chat.newThread} disabled={chat.streaming}><Plus size={15} /> New</button>}
+          </div>
         </header>
         <section className="conversation">
           <div className="conversation-inner">
@@ -211,6 +217,7 @@ export default function App() {
           <p>MiniAlpha can make mistakes. Verify important financial decisions.</p>
         </footer>
       </main>
+      <PersonalResearchPanel open={personalOpen} onClose={() => setPersonalOpen(false)} onResearch={setInput} />
     </div>
   )
 }

@@ -54,6 +54,17 @@ waits for a durable `cancelled` terminal event.
 Authentication, workspaces, dashboards, market WebSockets, file panels,
 subagents, and human approval remain deliberately omitted.
 
+## Personal research panel
+
+The **My research** panel provides a small watchlist and ticker-specific journal.
+Both are stored in browser `localStorage`, so they require no account or database
+migration and remain private to that browser profile. The research shortcut fills
+the composer with a price-risk prompt for the selected ticker.
+
+Price-history and quantitative cards display their latest source observation.
+They also surface stale-data and yfinance repair warnings carried by structured
+artifacts, rather than presenting every retrieved series as equally current.
+
 ## Run locally
 
 Start the API and its PostgreSQL dependency from the repository root, then run:
