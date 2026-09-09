@@ -78,10 +78,12 @@ class InMemoryExactCache:
     """Deterministic exact cache used by unit tests and local experiments."""
 
     def __init__(self, *, clock: Callable[[], datetime] | None = None) -> None:
+        """Initialize the in-memory exact cache."""
         self._clock = clock or (lambda: datetime.now(UTC))
         self._entries: dict[str, _ExactEntry] = {}
 
     async def get(self, key: str) -> dict[str, object] | None:
+        """Retrieve an exact JSON payload if unexpired."""
         entry = self._entries.get(key)
         if entry is None:
             return None
@@ -96,6 +98,7 @@ class InMemoryExactCache:
         payload: dict[str, object],
         ttl_seconds: int,
     ) -> None:
+        """Store a JSON payload alongside its absolute expiration."""
         if ttl_seconds <= 0:
             return
         self._entries[key] = _ExactEntry(
@@ -120,6 +123,7 @@ class InMemorySemanticCache:
     """Constraint-filtered cosine store mirroring the pgvector contract."""
 
     def __init__(self) -> None:
+        """Initialize an empty in-memory semantic cache list."""
         self._entries: list[_SemanticEntry] = []
 
     async def lookup(
@@ -131,6 +135,7 @@ class InMemorySemanticCache:
         threshold: float,
         now: datetime,
     ) -> SemanticCacheHit | None:
+        """Scan entries linearly for the best unexpired cosine match."""
         current = _utc(now)
         best: tuple[float, _SemanticEntry] | None = None
         for entry in self._entries:
@@ -169,6 +174,7 @@ class InMemorySemanticCache:
         expires_at: datetime,
         source_retrieved_at: datetime | None,
     ) -> None:
+        """Append an unindexed entry mimicking the pgvector destination."""
         _validate_embedding(embedding)
         self._entries.append(
             _SemanticEntry(
@@ -200,6 +206,7 @@ class CacheCoordinator:
         semantic_threshold: float = 0.92,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
+        """Initialize a fallback coordinator with explicit semantic thresholding."""
         if not 0.0 <= semantic_threshold <= 1.0:
             raise ValueError("Semantic threshold must be between 0 and 1.")
         if (semantic is None) != (embedder is None):

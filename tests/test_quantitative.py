@@ -173,8 +173,7 @@ def test_correlations_align_prices_before_calculating_returns() -> None:
     assert result.summary["observations"]["A"]["B"] == 2
     assert result.summary["correlations"]["A"]["B"] == pytest.approx(1)
     assert (
-        result.parameters["alignment"]
-        == "common_price_dates_before_return_calculation"
+        result.parameters["alignment"] == "common_price_dates_before_return_calculation"
     )
 
 
@@ -187,8 +186,7 @@ def test_downside_deviation_uses_root_mean_squared_zero_shortfall() -> None:
     assert result.summary["annualized_downside_deviation"] == pytest.approx(expected)
     assert result.parameters["minimum_acceptable_return"] == 0
     assert (
-        result.parameters["downside_deviation_method"]
-        == "root_mean_squared_shortfall"
+        result.parameters["downside_deviation_method"] == "root_mean_squared_shortfall"
     )
 
 

@@ -195,14 +195,13 @@ class QuantitativeResearchService:
     async def return_statistics(
         self, symbol: str, *, period: str = "1y", interval: str = "1d"
     ) -> QuantitativeDataset:
+        """Calculate basic return statistics over a specified period."""
         history = await self._history(symbol, period=period, interval=interval)
         returns = _simple_returns(history)
         values = [value for _, value in returns]
         annualization = _PERIODS_PER_YEAR[history.interval]
         prices = _analysis_prices(history)
-        total_return = (
-            prices[-1] / prices[0] - 1
-        )
+        total_return = prices[-1] / prices[0] - 1
         summary: dict[str, object] = {
             "observations": len(history.points),
             "return_observations": len(values),
@@ -233,6 +232,7 @@ class QuantitativeResearchService:
     async def volatility(
         self, symbol: str, *, period: str = "1y", interval: str = "1d"
     ) -> QuantitativeDataset:
+        """Calculate historical volatility and downside deviation."""
         history = await self._history(symbol, period=period, interval=interval)
         returns = _simple_returns(history)
         values = [value for _, value in returns]
@@ -270,6 +270,7 @@ class QuantitativeResearchService:
     async def drawdowns(
         self, symbol: str, *, period: str = "2y", interval: str = "1d"
     ) -> QuantitativeDataset:
+        """Calculate maximum drawdowns and recovery periods."""
         history = await self._history(symbol, period=period, interval=interval)
         _require_observations(history, 2)
         records, summary = _drawdown_records(
@@ -292,6 +293,7 @@ class QuantitativeResearchService:
         period: str = "1y",
         interval: str = "1d",
     ) -> QuantitativeDataset:
+        """Calculate a correlation matrix for multiple symbols."""
         normalized = list(dict.fromkeys(normalize_symbol(item) for item in symbols))
         if not 2 <= len(normalized) <= 5:
             raise InvalidQuantitativeQueryError(
@@ -320,13 +322,9 @@ class QuantitativeResearchService:
         observations: dict[str, dict[str, int]] = {symbol: {} for symbol in normalized}
         for left in normalized:
             for right in normalized:
-                common = sorted(
-                    price_series[left].keys() & price_series[right].keys()
-                )
+                common = sorted(price_series[left].keys() & price_series[right].keys())
                 left_prices = [price_series[left][timestamp] for timestamp in common]
-                right_prices = [
-                    price_series[right][timestamp] for timestamp in common
-                ]
+                right_prices = [price_series[right][timestamp] for timestamp in common]
                 left_values = [
                     current / previous - 1
                     for previous, current in zip(
@@ -369,7 +367,7 @@ class QuantitativeResearchService:
                 "alignment": "common_price_dates_before_return_calculation",
                 "price_fields": {
                     history.symbol: _price_field(history) for history in histories
-                }
+                },
             },
             summary={"correlations": matrix, "observations": observations},
             series=(),
@@ -390,6 +388,7 @@ class QuantitativeResearchService:
         long_window: int = 50,
         rsi_period: int = 14,
     ) -> QuantitativeDataset:
+        """Calculate technical indicators like SMA, EMA, and RSI."""
         if (
             isinstance(short_window, bool)
             or isinstance(long_window, bool)
@@ -455,6 +454,7 @@ class QuantitativeResearchService:
         long_window: int = 50,
         transaction_cost_bps: float = 10.0,
     ) -> QuantitativeDataset:
+        """Run a backtest for a simple moving average crossover strategy."""
         if (
             isinstance(short_window, bool)
             or isinstance(long_window, bool)

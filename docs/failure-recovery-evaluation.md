@@ -43,15 +43,15 @@ and API replay via migration `005_structured_failures`.
 The denominator is always all 50 scheduled original requests. Retries never
 become extra requests, and terminal errors are not counted as usable completion.
 
-| Metric | Baseline policy | Recovery policy |
-|---|---:|---:|
-| Scheduled original requests | 50 | 50 |
-| Usable completions | 20 (40%) | 37 (74%) |
-| Policy-correct outcomes | 20 (40%) | 50 (100%) |
-| Durable completions | 20 | 37 |
-| Delivery completions | 20 | 33 |
-| Cascading failures | 17 | 0 |
-| Structured error artifacts | 0 | 24 |
+| Metric                      | Baseline policy | Recovery policy |
+| --------------------------- | --------------: | --------------: |
+| Scheduled original requests |              50 |              50 |
+| Usable completions          |        20 (40%) |        37 (74%) |
+| Policy-correct outcomes     |        20 (40%) |       50 (100%) |
+| Durable completions         |              20 |              37 |
+| Delivery completions        |              20 |              33 |
+| Cascading failures          |              17 |               0 |
+| Structured error artifacts  |               0 |              24 |
 
 This report is a deterministic **policy simulation**, backed by executable unit
 and integration tests for the actual graph, retry, persistence, cache, and event

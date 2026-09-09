@@ -109,12 +109,12 @@ Controlled server failures use one envelope:
 }
 ```
 
-| Status | Code | Meaning |
-|---|---|---|
-| `422` | FastAPI validation detail | Request JSON does not match the contract |
-| `502` | `research_failed` | Gemini or graph execution did not complete |
-| `503` | `research_unavailable` | Required configuration or composition is unavailable |
-| `500` | `internal_error` | Unexpected server failure |
+| Status | Code                      | Meaning                                              |
+| ------ | ------------------------- | ---------------------------------------------------- |
+| `422`  | FastAPI validation detail | Request JSON does not match the contract             |
+| `502`  | `research_failed`         | Gemini or graph execution did not complete           |
+| `503`  | `research_unavailable`    | Required configuration or composition is unavailable |
+| `500`  | `internal_error`          | Unexpected server failure                            |
 
 Internal exception details, provider payloads, and credentials are not
 included in error responses.

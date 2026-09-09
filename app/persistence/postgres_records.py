@@ -35,7 +35,17 @@ RUN_COLUMNS = """
 def artifact_values(
     ordinal: int,
     artifact: Mapping[str, object],
-) -> tuple[UUID | None, int, str, int, str, Jsonb | None, str | None, Jsonb | None, Jsonb | None]:
+) -> tuple[
+    UUID | None,
+    int,
+    str,
+    int,
+    str,
+    Jsonb | None,
+    str | None,
+    Jsonb | None,
+    Jsonb | None,
+]:
     """Validate an artifact and build its SQL parameter tuple."""
     parsed = parse_artifact(artifact)
     return (

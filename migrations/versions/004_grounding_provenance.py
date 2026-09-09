@@ -17,9 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Add optional provenance; existing artifacts remain explicitly legacy."""
-    op.execute(
-        "ALTER TABLE conversation_artifacts ADD COLUMN provenance JSONB"
-    )
+    op.execute("ALTER TABLE conversation_artifacts ADD COLUMN provenance JSONB")
 
 
 def downgrade() -> None:
