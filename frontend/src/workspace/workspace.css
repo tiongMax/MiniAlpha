@@ -480,13 +480,15 @@
 }
 .watchlist-table {
   margin-top: 19px;
+  overflow-x: auto;
 }
 .watchlist-row {
   display: grid;
-  grid-template-columns: minmax(125px, 1fr) 95px 24px;
+  grid-template-columns: minmax(115px, 1fr) 100px 65px 145px 60px 24px;
   gap: 10px;
   align-items: center;
   min-height: 60px;
+  min-width: 590px;
   border-bottom: 1px solid #eff2ef;
 }
 .watchlist-row .muted {
@@ -532,6 +534,43 @@
   color: #b75642;
   background: #fbefea;
   border-radius: 5px;
+}
+.refresh-market-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.refresh-market-button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+.market-price,
+.market-change {
+  color: #34483b;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.market-price {
+  font-weight: 600;
+}
+.market-change.positive {
+  color: #287149;
+}
+.market-change.negative {
+  color: #ae4f42;
+}
+.market-risk,
+.market-observation {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.is-spinning {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .surface-footnote {
   font-size: 10px;

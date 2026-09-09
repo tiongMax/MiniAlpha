@@ -4,6 +4,7 @@ import type {
   RunEvent,
   ThreadListResponse,
   ThreadTranscriptResponse,
+  WatchlistMarketResponse,
 } from '../types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -34,6 +35,23 @@ export async function listThreads(signal?: AbortSignal): Promise<ThreadListRespo
   const response = await fetch(`${API_BASE}/api/v1/threads?limit=100`, { signal })
   if (!response.ok) throw await errorFrom(response)
   return (await response.json()) as ThreadListResponse
+}
+
+export async function loadWatchlistMarketData(
+  symbols: string[],
+  signal?: AbortSignal,
+): Promise<WatchlistMarketResponse> {
+  const response = await fetch(`${API_BASE}/api/v1/market/watchlist`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ symbols }),
+    signal,
+  })
+  if (!response.ok) throw await errorFrom(response)
+  return (await response.json()) as WatchlistMarketResponse
 }
 
 export async function loadTranscript(

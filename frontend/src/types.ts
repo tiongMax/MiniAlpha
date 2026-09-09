@@ -85,6 +85,33 @@ export interface RunAcceptedResponse {
   events_url: string
 }
 
+export interface WatchlistMarketItem {
+  status: 'ok'
+  symbol: string
+  currency: string | null
+  latest_price: number
+  previous_close: number
+  daily_change: number
+  daily_change_percent: number
+  latest_observation_at: string
+  annualized_volatility_30d: number | null
+  maximum_drawdown_3m: number
+  provider: string
+  retrieved_at: string
+  quality_warnings: string[]
+}
+
+export interface WatchlistMarketFailure {
+  status: 'error'
+  symbol: string
+  code: 'symbol_not_found' | 'provider_unavailable'
+  message: string
+}
+
+export interface WatchlistMarketResponse {
+  items: Array<WatchlistMarketItem | WatchlistMarketFailure>
+}
+
 export interface ChatTurn {
   id: string
   turnIndex?: number
