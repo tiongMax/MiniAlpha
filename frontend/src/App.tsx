@@ -1,223 +1,349 @@
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Activity,
-  Bookmark,
+  ArrowDownUp,
+  ArrowUpRight,
+  BookOpen,
   Bot,
-  ChevronRight,
+  Building2,
+  FlaskConical,
+  LayoutDashboard,
   Menu,
-  MessageSquareText,
-  Plus,
   Search,
-  Sparkles,
-  UserRound,
-  Wrench,
   X,
 } from 'lucide-react'
-import Markdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { ArtifactStack } from './artifacts/ArtifactRenderer'
 import { useResearchChat } from './chat/useResearchChat'
-import { PersonalResearchPanel } from './personal/PersonalResearchPanel'
-import type { ChatTurn, ToolCall } from './types'
+import { ResearchChat } from './chat/ResearchChat'
+import { usePersonalResearch } from './personal/usePersonalResearch'
+import { useWorkspace } from './workspace/useWorkspace'
+import { navigate, SYMBOL_PATTERN } from './workspace/model'
+import {
+  CompanyPage,
+  ComparePage,
+  JournalPage,
+  OverviewPage,
+  StrategyPage,
+  type PageProps,
+  type ResearchRequest,
+} from './workspace/WorkspacePages'
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(
-    new Date(value),
-  )
-}
-
-function ThreadSidebar({
-  mobileOpen,
-  onClose,
-  chat,
-}: {
-  mobileOpen: boolean
-  onClose: () => void
-  chat: ReturnType<typeof useResearchChat>
-}) {
-  const [query, setQuery] = useState('')
-  const visible = chat.threads.filter((thread) =>
-    (thread.title ?? 'Untitled research').toLowerCase().includes(query.toLowerCase()),
-  )
-
-  return (
-    <aside className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}>
-      <div className="brand-row">
-        <div className="brand-mark"><Activity size={20} /></div>
-        <div><strong>MiniAlpha</strong><span>Research agent</span></div>
-        <button className="icon-button mobile-only" onClick={onClose} aria-label="Close menu"><X size={20} /></button>
-      </div>
-      <button className="new-thread" onClick={() => { chat.newThread(); onClose() }} disabled={chat.streaming}>
-        <Plus size={17} /> New research
-      </button>
-      <label className="search-box">
-        <Search size={15} />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search threads" />
-      </label>
-      <div className="thread-label">Recent</div>
-      <nav className="thread-list">
-        {visible.map((thread) => (
-          <button
-            key={thread.thread_id}
-            className={`thread-item ${chat.threadId === thread.thread_id ? 'active' : ''}`}
-            onClick={() => { void chat.openThread(thread.thread_id); onClose() }}
-            disabled={chat.streaming}
-          >
-            <MessageSquareText size={16} />
-            <span><strong>{thread.title ?? 'Untitled research'}</strong><small>{formatDate(thread.updated_at)}</small></span>
-            <ChevronRight size={14} />
-          </button>
-        ))}
-        {!visible.length && <p className="empty-list">No saved threads yet.</p>}
-      </nav>
-      <div className="phase-note">
-        <span>Phase 12 quantitative</span>
-        Risk · indicators · backtests
-      </div>
-    </aside>
-  )
-}
-
-function ToolCard({ tool }: { tool: ToolCall }) {
-  return (
-    <details className={`tool-card ${tool.status ?? 'running'}`}>
-      <summary>
-        <span className="tool-icon"><Wrench size={14} /></span>
-        <span><strong>{tool.name}</strong><small>{tool.status === 'running' ? 'Running tool' : tool.status === 'error' ? 'Tool returned an error' : 'Tool completed'}</small></span>
-        <span className="status-dot" />
-      </summary>
-      <div className="tool-detail">
-        <div><span>Arguments</span><pre>{JSON.stringify(tool.arguments, null, 2)}</pre></div>
-        {tool.summary && <div><span>Result</span><p>{tool.summary}</p></div>}
-      </div>
-    </details>
-  )
-}
-
-function ProgressStatus({ turn }: { turn: ChatTurn }) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000)
-    return () => window.clearInterval(timer)
-  }, [])
-  const started = turn.progress ? new Date(turn.progress.startedAt).getTime() : now
-  const elapsed = Math.max(0, Math.floor((now - started) / 1_000))
-  const message = turn.progress?.message ?? 'Researching…'
-  return (
-    <div className="thinking" role="status" aria-live="polite">
-      <i /><i /><i />
-      <span>{message} · {elapsed}s</span>
-    </div>
-  )
-}
-
-function Turn({ turn }: { turn: ChatTurn }) {
-  return (
-    <article className="turn">
-      <div className="message user-message">
-        <div className="avatar user-avatar"><UserRound size={16} /></div>
-        <div><div className="message-label">You</div><p>{turn.user}</p></div>
-      </div>
-      <div className="message assistant-message">
-        <div className="avatar agent-avatar"><Bot size={17} /></div>
-        <div className="assistant-content">
-          <div className="message-label">MiniAlpha</div>
-          {turn.status === 'in_progress' && <ProgressStatus turn={turn} />}
-          {turn.tools.length > 0 && <div className="tool-stack">{turn.tools.map((tool, index) => <ToolCard key={tool.tool_call_id ?? index} tool={tool} />)}</div>}
-          {turn.artifacts.length > 0 && <ArtifactStack artifacts={turn.artifacts} />}
-          {turn.assistant ? (
-            <div className="markdown"><Markdown remarkPlugins={[remarkGfm]}>{turn.assistant}</Markdown></div>
-          ) : null}
-          {turn.status === 'cancelled' && <div className="inline-notice">Research run cancelled.</div>}
-          {turn.error && <div className="inline-error">{turn.error}</div>}
-        </div>
-      </div>
-    </article>
-  )
-}
-
-function EmptyState({ onPrompt }: { onPrompt: (prompt: string) => void }) {
-  const prompts = [
-    'Give me a company overview of Apple',
-    'Compare Microsoft and Nvidia',
-    'Backtest a 20/50-day strategy for Apple',
-  ]
-  return (
-    <div className="empty-state">
-      <div className="hero-mark"><Activity size={30} /></div>
-      <h1>Financial research, made inspectable.</h1>
-      <p>Ask a question and watch MiniAlpha reason through live model output, tool calls, and structured evidence.</p>
-      <div className="prompt-grid">
-        {prompts.map((prompt) => <button key={prompt} onClick={() => onPrompt(prompt)}>{prompt}<ChevronRight size={15} /></button>)}
-      </div>
-    </div>
-  )
-}
+const navigation = [
+  { page: 'overview', label: 'Overview', Icon: LayoutDashboard },
+  { page: 'companies', label: 'Companies', Icon: Building2 },
+  { page: 'compare', label: 'Compare', Icon: ArrowDownUp },
+  { page: 'strategy', label: 'Strategy lab', Icon: FlaskConical },
+  { page: 'journal', label: 'Journal', Icon: BookOpen },
+  { page: 'assistant', label: 'Research assistant', Icon: Bot },
+] as const
 
 export default function App() {
   const chat = useResearchChat()
-  const [input, setInput] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [personalOpen, setPersonalOpen] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const personal = usePersonalResearch()
+  const workspace = useWorkspace()
+  const { page, target } = workspace.route
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [assistantOpen, setAssistantOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [admitting, setAdmitting] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: chat.streaming ? 'smooth' : 'auto' })
-  }, [chat.turns, chat.streaming])
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (mobileOpen) {
+        setMobileOpen(false)
+        document.querySelector<HTMLButtonElement>('.mobile-menu')?.focus()
+      } else if (assistantOpen) {
+        setAssistantOpen(false)
+        document.querySelector<HTMLButtonElement>('.assistant-toggle')?.focus()
+      }
+    }
+    window.addEventListener('keydown', escape)
+    return () => window.removeEventListener('keydown', escape)
+  }, [mobileOpen, assistantOpen])
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    const message = input.trim()
-    if (!message || chat.streaming) return
-    setInput('')
-    void chat.send(message)
+  useEffect(() => {
+    setMobileOpen(false)
+    document.title = `${navigation.find((item) => item.page === page)?.label ?? 'Overview'} · MiniAlpha`
+    document.getElementById('workspace-heading')?.focus()
+  }, [page, target])
+
+  const openAssistant = (threadId: string) => {
+    if (chat.streaming && chat.threadId !== threadId) {
+      setNotice('Finish or stop the current research before opening another conversation.')
+      return
+    }
+    if (threadId !== chat.threadId) chat.openThread(threadId)
+    navigate('assistant')
   }
 
+  const runResearch = (request: ResearchRequest) => {
+    if (chat.streaming || admitting) return
+    const id = crypto.randomUUID()
+    setAdmitting(true)
+    setNotice(null)
+    void chat
+      .send(request.prompt, {
+        newThread: true,
+        onAccepted: (threadId) => {
+          workspace.saveDocument({
+            id,
+            kind: request.kind,
+            title: request.title,
+            symbols: request.symbols,
+            settings: request.settings,
+            threadId,
+            updatedAt: new Date().toISOString(),
+          })
+          navigate(request.kind, request.kind === 'companies' ? request.symbols[0] : id)
+          setAdmitting(false)
+        },
+      })
+      .finally(() => setAdmitting(false))
+  }
+  const props: PageProps = {
+    target,
+    documents: workspace.documents,
+    chat,
+    personal,
+    onRun: runResearch,
+    onOpenAssistant: openAssistant,
+  }
+  const context =
+    page === 'companies'
+      ? target
+      : (workspace.documents.find((doc) => doc.id === target)?.symbols.join(', ') ?? '')
+
   return (
-    <div className="app-shell">
-      <ThreadSidebar mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} chat={chat} />
-      {sidebarOpen && <button className="sidebar-scrim" onClick={() => setSidebarOpen(false)} aria-label="Close menu" />}
-      <main className="main-panel">
-        <header className="topbar">
-          <button className="icon-button mobile-only" onClick={() => setSidebarOpen(true)} aria-label="Open menu"><Menu size={20} /></button>
-          <div><strong>{chat.threadId ? 'Research thread' : 'New research'}</strong><span><i className="online-dot" /> API via live SSE</span></div>
-          <div className="topbar-actions">
-            <button className="topbar-personal" onClick={() => setPersonalOpen(true)}><Bookmark size={15} /> My research</button>
-            {chat.threadId && <button className="topbar-new" onClick={chat.newThread} disabled={chat.streaming}><Plus size={15} /> New</button>}
+    <div className="app-shell workspace-shell">
+      <a
+        className="skip-link"
+        href="#workspace-heading"
+        onClick={(event) => {
+          event.preventDefault()
+          document.getElementById('workspace-heading')?.focus()
+        }}
+      >
+        Skip to content
+      </a>
+      <aside
+        className={`workspace-sidebar ${mobileOpen ? 'is-open' : ''}`}
+        aria-label="Main navigation"
+      >
+        <a href="#/overview" className="workspace-brand">
+          <span className="brand-mark">
+            <Activity size={21} />
+          </span>
+          <span>
+            MiniAlpha<small>THE RESEARCH WORKSPACE</small>
+          </span>
+        </a>
+        <button
+          className="icon-button mobile-close"
+          aria-label="Close navigation"
+          onClick={() => setMobileOpen(false)}
+        >
+          <X size={20} />
+        </button>
+        <span className="nav-label">WORKSPACE</span>
+        <nav className="workspace-nav">
+          {navigation.map(({ page: itemPage, label, Icon }) => (
+            <a
+              key={itemPage}
+              href={`#/${itemPage}`}
+              aria-current={page === itemPage ? 'page' : undefined}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+              {page === itemPage && <span className="nav-active-dot" />}
+            </a>
+          ))}
+        </nav>
+        <div className="sidebar-following">
+          <span className="nav-label">
+            FOLLOWING <span>{personal.watchlist.length}</span>
+          </span>
+          {personal.watchlist.slice(0, 8).map((item) => (
+            <a key={item.symbol} href={`#/companies/${encodeURIComponent(item.symbol)}`}>
+              <span className="sidebar-ticker-dot" />
+              {item.symbol}
+              <ArrowUpRight size={12} />
+            </a>
+          ))}
+          {!personal.watchlist.length && <p>Add companies to your watchlist to keep them close.</p>}
+        </div>
+        <div className="workspace-sidebar-footer">
+          <span className="brand-mark small-brand">
+            <Activity size={16} />
+          </span>
+          <div>
+            <strong>Your research desk</strong>
+            <small>Evidence behind every idea</small>
           </div>
-        </header>
-        <section className="conversation">
-          <div className="conversation-inner">
-            {chat.loadingThread ? <div className="page-loader"><Activity className="spin" /> Loading conversation</div> : chat.turns.length ? chat.turns.map((turn) => <Turn key={turn.id} turn={turn} />) : <EmptyState onPrompt={setInput} />}
-            {chat.error && <div className="global-error">{chat.error}</div>}
-            <div ref={bottomRef} />
+        </div>
+      </aside>
+      {mobileOpen && (
+        <button
+          className="nav-scrim"
+          aria-label="Close navigation"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+      <main className="workspace-main">
+        <header className="workspace-topbar">
+          <button
+            className="icon-button mobile-menu"
+            aria-label="Open navigation"
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen(true)}
+          >
+            <Menu size={20} />
+          </button>
+          <div className="breadcrumbs">
+            <span>Workspace</span>
+            <span>/</span>
+            <strong id="workspace-heading" tabIndex={-1}>
+              {navigation.find((item) => item.page === page)?.label}
+            </strong>
           </div>
-        </section>
-        <footer className="composer-wrap">
-          <form className="composer" onSubmit={submit}>
-            <textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  event.currentTarget.form?.requestSubmit()
-                }
-              }}
-              placeholder="Ask about a company, ticker, or comparison…"
-              rows={1}
-              disabled={chat.streaming}
+          <form
+            className="global-search"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const ticker = search.trim().toUpperCase()
+              if (SYMBOL_PATTERN.test(ticker)) {
+                navigate('companies', ticker)
+                setSearch('')
+              } else setNotice('Enter a ticker such as AAPL, ^GSPC, or 1155.KL.')
+            }}
+          >
+            <Search size={15} />
+            <label className="sr-only" htmlFor="global-ticker">
+              Open company by ticker
+            </label>
+            <input
+              id="global-ticker"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Find a ticker…"
+              maxLength={20}
+              required
             />
-            {chat.streaming ? (
-              <button type="button" className="running-button" onClick={() => void chat.stop()}><X size={17} /> Stop</button>
-            ) : (
-              <button type="submit" className="send-button" disabled={!input.trim()}><Sparkles size={17} /> Ask</button>
-            )}
           </form>
-          <p>MiniAlpha can make mistakes. Verify important financial decisions.</p>
-        </footer>
+          {page !== 'assistant' && (
+            <button
+              className={`assistant-toggle ${assistantOpen ? 'selected' : ''}`}
+              aria-expanded={assistantOpen}
+              onClick={() => setAssistantOpen((current) => !current)}
+            >
+              <Bot size={17} />
+              <span>Ask assistant</span>
+            </button>
+          )}
+        </header>
+        {(workspace.storageError || personal.storageError) && (
+          <p className="workspace-notice" role="status">
+            {workspace.storageError ?? personal.storageError}
+          </p>
+        )}
+        {notice && (
+          <p className="workspace-notice" role="status">
+            {notice}
+            <button
+              className="icon-button"
+              aria-label="Dismiss notice"
+              onClick={() => setNotice(null)}
+            >
+              <X size={14} />
+            </button>
+          </p>
+        )}
+        {admitting && (
+          <p className="workspace-notice" role="status">
+            <span className="working-dot" /> Starting your research…
+          </p>
+        )}
+        {!admitting && chat.error && page !== 'assistant' && (
+          <p className="workspace-notice error-notice" role="alert">
+            {chat.error}
+            <button className="text-button" onClick={() => navigate('assistant')}>
+              View details
+            </button>
+          </p>
+        )}
+        {chat.streaming && page !== 'assistant' && (
+          <div className="active-research-bar" role="status">
+            <span className="working-dot" /> Research continues as you explore.
+            <button className="text-button" onClick={() => navigate('assistant')}>
+              View progress
+            </button>
+            <button className="text-button" onClick={() => void chat.stop()}>
+              Stop
+            </button>
+          </div>
+        )}
+        <div className="workspace-body">
+          {page === 'assistant' ? (
+            <div className="assistant-page">
+              <aside className="conversation-history">
+                <header>
+                  <h2>Conversations</h2>
+                  <button
+                    className="text-button"
+                    disabled={chat.streaming}
+                    onClick={chat.newThread}
+                  >
+                    New
+                  </button>
+                </header>
+                {chat.threads.map((thread) => (
+                  <button
+                    key={thread.thread_id}
+                    className={thread.thread_id === chat.threadId ? 'selected' : ''}
+                    disabled={chat.streaming}
+                    onClick={() => openAssistant(thread.thread_id)}
+                  >
+                    {thread.title ?? 'Untitled research'}
+                    <small>{new Date(thread.updated_at).toLocaleDateString()}</small>
+                  </button>
+                ))}
+                {!chat.threads.length && (
+                  <p className="muted">Your conversations will appear here.</p>
+                )}
+              </aside>
+              <ResearchChat chat={chat} />
+            </div>
+          ) : (
+            <div
+              className="workspace-content"
+              key={page === 'companies' || page === 'journal' ? `${page}:${target}` : page}
+            >
+              {page === 'overview' && <OverviewPage {...props} />}
+              {page === 'companies' && <CompanyPage {...props} />}
+              {page === 'compare' && <ComparePage {...props} key={target || 'new'} />}
+              {page === 'strategy' && <StrategyPage {...props} key={target || 'new'} />}
+              {page === 'journal' && <JournalPage {...props} />}
+              <footer className="workspace-footer">
+                <Activity size={13} />
+                <span>MiniAlpha · Research with perspective</span>
+                <span>Data availability varies by provider.</span>
+              </footer>
+            </div>
+          )}
+          {assistantOpen && page !== 'assistant' && (
+            <aside className="context-assistant">
+              <button
+                className="context-close icon-button"
+                onClick={() => setAssistantOpen(false)}
+                aria-label="Close assistant"
+              >
+                <X size={18} />
+              </button>
+              <ResearchChat chat={chat} context={context} compact />
+            </aside>
+          )}
+        </div>
       </main>
-      <PersonalResearchPanel open={personalOpen} onClose={() => setPersonalOpen(false)} onResearch={setInput} />
     </div>
   )
 }

@@ -48,20 +48,19 @@ export function reduceRunEvent(turn: ChatTurn, event: RunEvent): ChatTurn {
       const callId = text(data.tool_call_id)
       const status: ToolCall['status'] = data.status === 'error' ? 'error' : 'ok'
       const nextTools = turn.tools.map((tool) =>
-        tool.tool_call_id === callId
-          ? { ...tool, status, summary: text(data.summary) }
-          : tool,
+        tool.tool_call_id === callId ? { ...tool, status, summary: text(data.summary) } : tool,
       )
       return { ...turn, tools: nextTools }
     }
     case 'artifact': {
       const artifact = data as unknown as Artifact
-      const artifacts = artifact.status === 'ok'
-        ? turn.artifacts.filter(
-            (existing) =>
-              existing.artifact_type !== artifact.artifact_type || existing.status !== 'error',
-          )
-        : turn.artifacts
+      const artifacts =
+        artifact.status === 'ok'
+          ? turn.artifacts.filter(
+              (existing) =>
+                existing.artifact_type !== artifact.artifact_type || existing.status !== 'error',
+            )
+          : turn.artifacts
       return { ...turn, artifacts: [...artifacts, artifact] }
     }
     case 'error':

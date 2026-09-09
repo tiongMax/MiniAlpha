@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { SYMBOL_PATTERN } from '../workspace/model'
 
 const STORAGE_KEY = 'minialpha.personal-research.v1'
-const SYMBOL_PATTERN = /^[A-Z0-9^][A-Z0-9.^=-]{0,19}$/
 
 export interface WatchlistItem {
   symbol: string
@@ -30,8 +30,28 @@ function readState(): PersonalResearchState {
     if (!parsed || typeof parsed !== 'object') return EMPTY_STATE
     const candidate = parsed as Partial<PersonalResearchState>
     return {
-      watchlist: Array.isArray(candidate.watchlist) ? candidate.watchlist : [],
-      journal: Array.isArray(candidate.journal) ? candidate.journal : [],
+      watchlist: Array.isArray(candidate.watchlist)
+        ? candidate.watchlist.filter(
+            (item) =>
+              item &&
+              typeof item.symbol === 'string' &&
+              SYMBOL_PATTERN.test(item.symbol) &&
+              typeof item.addedAt === 'string' &&
+              Number.isFinite(Date.parse(item.addedAt)),
+          )
+        : [],
+      journal: Array.isArray(candidate.journal)
+        ? candidate.journal.filter(
+            (item) =>
+              item &&
+              typeof item.id === 'string' &&
+              typeof item.symbol === 'string' &&
+              SYMBOL_PATTERN.test(item.symbol) &&
+              typeof item.note === 'string' &&
+              typeof item.createdAt === 'string' &&
+              Number.isFinite(Date.parse(item.createdAt)),
+          )
+        : [],
     }
   } catch {
     return EMPTY_STATE
@@ -40,12 +60,16 @@ function readState(): PersonalResearchState {
 
 export function usePersonalResearch() {
   const [state, setState] = useState<PersonalResearchState>(readState)
+  const [storageError, setStorageError] = useState<string | null>(null)
 
   useEffect(() => {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+      setStorageError(null)
     } catch {
-      // Personal research remains usable for the session when storage is blocked.
+      setStorageError(
+        'Changes are available for this session only because browser storage is unavailable.',
+      )
     }
   }, [state])
 
@@ -54,12 +78,14 @@ export function usePersonalResearch() {
     if (!SYMBOL_PATTERN.test(symbol)) {
       return 'Enter a ticker such as AAPL, ^GSPC, or 1155.KL.'
     }
-    setState((current) => current.watchlist.some((item) => item.symbol === symbol)
-      ? current
-      : {
-          ...current,
-          watchlist: [...current.watchlist, { symbol, addedAt: new Date().toISOString() }],
-        })
+    setState((current) =>
+      current.watchlist.some((item) => item.symbol === symbol)
+        ? current
+        : {
+            ...current,
+            watchlist: [...current.watchlist, { symbol, addedAt: new Date().toISOString() }],
+          },
+    )
     return null
   }, [])
 
@@ -76,12 +102,15 @@ export function usePersonalResearch() {
     if (!note) return 'Write a note before saving.'
     setState((current) => ({
       ...current,
-      journal: [{
-        id: crypto.randomUUID(),
-        symbol,
-        note,
-        createdAt: new Date().toISOString(),
-      }, ...current.journal],
+      journal: [
+        {
+          id: crypto.randomUUID(),
+          symbol,
+          note,
+          createdAt: new Date().toISOString(),
+        },
+        ...current.journal,
+      ],
     }))
     return null
   }, [])
@@ -95,6 +124,7 @@ export function usePersonalResearch() {
 
   return {
     ...state,
+    storageError,
     addSymbol,
     removeSymbol,
     addJournalEntry,
