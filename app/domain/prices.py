@@ -15,6 +15,7 @@ class PricePoint:
     close: float
     volume: int | None
     adjusted_close: float | None = None
+    repaired: bool = False
 
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = asdict(self)
@@ -33,8 +34,12 @@ class PriceHistory:
     points: tuple[PricePoint, ...]
     provider: str
     retrieved_at: datetime
+    quality_warnings: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
+        latest_observation_at = (
+            self.points[-1].timestamp.isoformat() if self.points else None
+        )
         return {
             "symbol": self.symbol,
             "currency": self.currency,
@@ -43,4 +48,7 @@ class PriceHistory:
             "points": [point.to_dict() for point in self.points],
             "provider": self.provider,
             "retrieved_at": self.retrieved_at.isoformat(),
+            "latest_observation_at": latest_observation_at,
+            "repaired_observations": sum(point.repaired for point in self.points),
+            "quality_warnings": list(self.quality_warnings),
         }

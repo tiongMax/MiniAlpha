@@ -190,6 +190,8 @@ class QuantitativeResearchService:
             provider=history.provider,
             source_retrieved_at=history.retrieved_at,
             calculated_at=datetime.now(UTC),
+            source_latest_observation_at=history.points[-1].timestamp,
+            quality_warnings=history.quality_warnings,
         )
 
     async def return_statistics(
@@ -360,6 +362,14 @@ class QuantitativeResearchService:
                     correlation = numerator / denominator if denominator else None
                 matrix[left][right] = correlation
         retrieved_at = max(history.retrieved_at for history in histories)
+        latest_observation_at = min(
+            history.points[-1].timestamp for history in histories
+        )
+        quality_warnings = tuple(
+            f"{history.symbol}: {warning}"
+            for history in histories
+            for warning in history.quality_warnings
+        )
         return QuantitativeDataset(
             analysis="correlation_analysis",
             symbols=tuple(normalized),
@@ -378,6 +388,8 @@ class QuantitativeResearchService:
             ),
             source_retrieved_at=retrieved_at,
             calculated_at=datetime.now(UTC),
+            source_latest_observation_at=latest_observation_at,
+            quality_warnings=quality_warnings,
         )
 
     async def technical_indicators(

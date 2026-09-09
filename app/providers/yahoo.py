@@ -418,6 +418,8 @@ class YahooFinanceProvider:
             period=period,
             interval=interval,
             auto_adjust=False,
+            repair=True,
+            raise_errors=True,
         )
         points: list[PricePoint] = []
         for raw_timestamp, row in history.iterrows():
@@ -444,6 +446,7 @@ class YahooFinanceProvider:
                     close=close,
                     volume=int(raw_volume) if raw_volume is not None else None,
                     adjusted_close=_number(_value(row, "Adj Close")),
+                    repaired=bool(_value(row, "Repaired?")),
                 )
             )
         if not points:
@@ -451,6 +454,20 @@ class YahooFinanceProvider:
                 f"Yahoo Finance has no price history for {symbol}."
             )
         currency = _text(_value(ticker.fast_info, "currency"))
+        retrieved_at = datetime.now(UTC)
+        repaired_observations = sum(point.repaired for point in points)
+        stale_after_days = {"1d": 5, "1wk": 14, "1mo": 45}[interval]
+        age_days = (retrieved_at.date() - points[-1].timestamp.date()).days
+        warnings: list[str] = []
+        if repaired_observations:
+            warnings.append(
+                f"Yahoo repaired {repaired_observations} historical observation(s)."
+            )
+        if age_days > stale_after_days:
+            warnings.append(
+                "The latest available observation may be stale "
+                f"({points[-1].timestamp.date().isoformat()})."
+            )
         return PriceHistory(
             symbol=symbol,
             currency=currency,
@@ -458,7 +475,8 @@ class YahooFinanceProvider:
             interval=interval,
             points=tuple(points),
             provider="Yahoo Finance",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=retrieved_at,
+            quality_warnings=tuple(warnings),
         )
 
     def _fetch_financial_statements(
