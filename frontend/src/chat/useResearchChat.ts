@@ -22,10 +22,7 @@ function transcriptToChat(turns: ThreadTurn[]): ChatTurn[] {
   }))
 }
 
-function reconcileTranscript(
-  storedTurns: ThreadTurn[],
-  liveTurns: ChatTurn[],
-): ChatTurn[] {
+function reconcileTranscript(storedTurns: ThreadTurn[], liveTurns: ChatTurn[]): ChatTurn[] {
   return transcriptToChat(storedTurns).map((stored) => {
     if (stored.status !== 'cancelled') return stored
     const live = liveTurns.find((turn) => turn.id === stored.id)
@@ -98,9 +95,18 @@ export function useResearchChat() {
   }, [])
 
   const send = useCallback(
-    async (message: string) => {
+    async (
+      message: string,
+      options?: { newThread?: boolean; onAccepted?: (threadId: string) => void },
+    ) => {
       const cleanMessage = message.trim()
       if (!cleanMessage || activeStream.current) return
+
+      if (options?.newThread) {
+        selectedThread.current = null
+        setThreadId(null)
+        setTurns([])
+      }
 
       const controller = new AbortController()
       activeStream.current = controller
@@ -125,6 +131,7 @@ export function useResearchChat() {
           requestKey,
           signal: controller.signal,
           onAccepted: (run) => {
+            options?.onAccepted?.(run.thread_id)
             activeRunId.current = run.run_id
             if (!selectedThread.current) {
               selectedThread.current = run.thread_id
@@ -215,11 +222,11 @@ export function useResearchChat() {
   }, [])
 
   const queryError = threadListQuery.error ?? transcriptQuery.error
-  const error =
-    streamError ?? (queryError instanceof Error ? queryError.message : null)
+  const error = streamError ?? (queryError instanceof Error ? queryError.message : null)
 
   return {
     threads: threadListQuery.data?.threads ?? [],
+    loadingThreads: threadListQuery.isPending,
     threadId,
     turns,
     loadingThread: threadId !== null && transcriptQuery.isPending && !streaming,

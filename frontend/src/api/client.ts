@@ -93,11 +93,7 @@ export async function streamMessage(options: StreamOptions): Promise<void> {
       if (!terminal) await abortableDelay(reconnectDelay, options.signal)
     } catch (caught) {
       if (options.signal.aborted) throw caught
-      if (
-        caught instanceof HttpResponseError &&
-        caught.status < 500 &&
-        caught.status !== 429
-      ) {
+      if (caught instanceof HttpResponseError && caught.status < 500 && caught.status !== 429) {
         throw caught
       }
       await abortableDelay(reconnectDelay, options.signal)
@@ -179,4 +175,3 @@ function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void
     signal.addEventListener('abort', onAbort, { once: true })
   })
 }
-
