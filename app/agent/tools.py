@@ -328,6 +328,7 @@ def create_price_history_tool(service: CompanyResearchService) -> BaseTool:
 
 
 def create_financial_statements_tool(service: CompanyResearchService) -> BaseTool:
+    """Create the financial statements evaluation tool."""
     @tool(response_format="content_and_artifact")
     async def get_financial_statements(
         symbol: str, frequency: str = "yearly"
@@ -343,6 +344,7 @@ def create_financial_statements_tool(service: CompanyResearchService) -> BaseToo
 
 
 def create_fundamental_ratios_tool(service: CompanyResearchService) -> BaseTool:
+    """Create the fundamental ratios analysis tool."""
     @tool(response_format="content_and_artifact")
     async def get_fundamental_ratios(
         symbol: str,
@@ -358,6 +360,7 @@ def create_fundamental_ratios_tool(service: CompanyResearchService) -> BaseTool:
 
 
 def create_analyst_estimates_tool(service: CompanyResearchService) -> BaseTool:
+    """Create the tool for retrieving analyst estimates."""
     @tool(response_format="content_and_artifact")
     async def get_analyst_estimates(
         symbol: str,
@@ -373,6 +376,7 @@ def create_analyst_estimates_tool(service: CompanyResearchService) -> BaseTool:
 
 
 def create_sec_filings_tool(service: CompanyResearchService) -> BaseTool:
+    """Create the SEC filings lookup tool."""
     @tool(response_format="content_and_artifact")
     async def get_sec_filings(
         symbol: str, limit: int = 10
@@ -388,6 +392,7 @@ def create_sec_filings_tool(service: CompanyResearchService) -> BaseTool:
 
 
 def create_ownership_tool(service: CompanyResearchService) -> BaseTool:
+    """Create the company ownership analytics tool."""
     @tool(response_format="content_and_artifact")
     async def get_ownership(
         symbol: str, limit: int = 10
@@ -403,6 +408,7 @@ def create_ownership_tool(service: CompanyResearchService) -> BaseTool:
 
 
 def create_insider_activity_tool(service: CompanyResearchService) -> BaseTool:
+    """Create the tool tracking insider corporate activity."""
     @tool(response_format="content_and_artifact")
     async def get_insider_activity(
         symbol: str, limit: int = 10
@@ -418,6 +424,7 @@ def create_insider_activity_tool(service: CompanyResearchService) -> BaseTool:
 
 
 def create_company_news_tool(service: CompanyResearchService) -> BaseTool:
+    """Create the company news and headlines scraper tool."""
     @tool(response_format="content_and_artifact")
     async def get_company_news(
         symbol: str, limit: int = 8
@@ -433,6 +440,7 @@ def create_company_news_tool(service: CompanyResearchService) -> BaseTool:
 
 
 def create_company_comparison_tool(service: CompanyResearchService) -> BaseTool:
+    """Create a tool that compares distinct company metrics side-by-side."""
     @tool(response_format="content_and_artifact")
     async def compare_companies(
         symbols: list[str],
@@ -448,6 +456,7 @@ def create_company_comparison_tool(service: CompanyResearchService) -> BaseTool:
 
 
 def create_return_statistics_tool(service: QuantitativeResearchService) -> BaseTool:
+    """Create the tool evaluating overall return statistics."""
     @tool(response_format="content_and_artifact")
     async def calculate_return_statistics(
         symbol: str,
@@ -467,6 +476,7 @@ def create_return_statistics_tool(service: QuantitativeResearchService) -> BaseT
 
 
 def create_volatility_tool(service: QuantitativeResearchService) -> BaseTool:
+    """Create the standard quantitative volatility tool."""
     @tool(response_format="content_and_artifact")
     async def calculate_volatility(
         symbol: str,
@@ -484,6 +494,7 @@ def create_volatility_tool(service: QuantitativeResearchService) -> BaseTool:
 
 
 def create_drawdown_tool(service: QuantitativeResearchService) -> BaseTool:
+    """Create the portfolio and asset drawdown analysis tool."""
     @tool(response_format="content_and_artifact")
     async def analyze_drawdowns(
         symbol: str,
@@ -501,6 +512,7 @@ def create_drawdown_tool(service: QuantitativeResearchService) -> BaseTool:
 
 
 def create_correlation_tool(service: QuantitativeResearchService) -> BaseTool:
+    """Create the correlation analysis mathematical tool."""
     @tool(response_format="content_and_artifact")
     async def calculate_correlations(
         symbols: list[str],
@@ -520,6 +532,7 @@ def create_correlation_tool(service: QuantitativeResearchService) -> BaseTool:
 def create_technical_indicators_tool(
     service: QuantitativeResearchService,
 ) -> BaseTool:
+    """Create the technical analysis indicators extraction tool."""
     @tool(response_format="content_and_artifact")
     async def calculate_technical_indicators(
         symbol: str,
@@ -549,6 +562,7 @@ def create_technical_indicators_tool(
 def create_moving_average_backtest_tool(
     service: QuantitativeResearchService,
 ) -> BaseTool:
+    """Create the historical SMA/EMA crossover backtesting tool."""
     @tool(response_format="content_and_artifact")
     async def backtest_moving_average(
         symbol: str,

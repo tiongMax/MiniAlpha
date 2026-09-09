@@ -1,13 +1,13 @@
-# MiniAlpha
+# 📈 MiniAlpha
 
-MiniAlpha is a learning project that rebuilds the core research loop behind
-LangAlpha with an explicit LangGraph instead of
-`langchain.agents.create_agent`.
+MiniAlpha is a learning project that rebuilds the core research loop behind [LangAlpha] with an explicit **LangGraph** instead of `langchain.agents.create_agent`.
 
-## Phase 12 deterministic quantitative research
+---
 
-Phase 12 builds on the detached, reconnectable run lifecycle, structured
-artifacts, and fundamental tools with deterministic market calculations:
+## ✨ Features & Architecture
+
+### Phase 12: Deterministic Quantitative Research
+Phase 12 builds on the detached, reconnectable run lifecycle, structured artifacts, and fundamental tools with deterministic market calculations:
 
 ```text
 HTTP client
@@ -23,41 +23,17 @@ HTTP client
   -> React artifact renderer -> company cards, charts, comparison tables
 ```
 
-Phase 4 introduced application-owned records for threads, queries, runs, and
-artifacts. Phase 5 added PostgreSQL checkpoints. Phase 6 translates live graph
-activity into a small application-owned SSE protocol without exposing raw
-LangGraph events.
+- **Persistence Boundary:** The application database (PostgreSQL) owns request identity, run lifecycle, transcripts, and checkpoint pointers. LangGraph owns the serialized graph state. 
+- **Frontend integration:** A React frontend consumes the API for interactive agent testing. It supports durable threads, streaming assistant text, historical price charts, and data tools.
+- *(Note on Statelessness)*: The original stateless endpoint remains available. Each call initiates a fresh graph state.
 
-This follows LangAlpha's important persistence boundary at learning scale:
-the application database owns request identity, run lifecycle, transcripts,
-and the published checkpoint pointer; LangGraph owns serialized graph state.
-Redis is live transport rather than lifecycle truth. MiniAlpha does not yet
-copy LangAlpha's multi-worker coordination, authentication, workspaces,
-sandboxing, MCP, PTC, or subagent infrastructure.
+---
 
-A small React frontend now consumes the Phase 12 API so the agent can be tested
-interactively. It provides a durable thread list, transcript loading, streaming
-assistant text, tool progress, company overview cards, historical price charts,
-and comparisons derived from multiple company artifacts. The agent can also
-retrieve statements, ratios, estimates, SEC filing metadata, ownership,
-insider activity, and recent news. Deterministic tools calculate return
-statistics, volatility, drawdowns, correlations, SMA/EMA/RSI indicators, and
-lagged moving-average backtests; the model explains results but never performs
-the arithmetic. TanStack
-React Query caches committed thread/transcript server state; provisional SSE
-events remain in a local reducer until the completed transcript is refetched.
-The Stop control performs durable server-side cancellation. Interrupted event
-requests reconnect with `Last-Event-ID` and do not duplicate reduced events.
-Active turns immediately report whether the agent is planning, running tools,
-or synthesizing, together with elapsed time. Final model text is streamed as it
-is generated rather than held until the complete response is available.
+## 🚀 Setup & Quickstart
 
-The original stateless endpoint remains available. Each call to it starts with
-fresh graph state.
+### 1. Environment Configuration
 
-## Setup
-
-Copy `.env.example` to `.env`, then set:
+Copy `.env.example` to `.env`, then configure your keys:
 
 ```dotenv
 GEMINI_API_KEY=...
@@ -65,195 +41,85 @@ GEMINI_MODEL=gemini-2.5-flash
 DATABASE_URL=postgresql://minialpha:minialpha@localhost:5433/minialpha
 REDIS_URL=redis://localhost:6379/0
 ```
+>*Optional:* To export stable LangSmith traces without payloads, set `LANGSMITH_TRACING=true` and your `LANGSMITH_API_KEY`.
 
-LangSmith tracing is optional and disabled by default. To export the stable,
-privacy-redacted application spans, set `LANGSMITH_TRACING=true`,
-`LANGSMITH_API_KEY`, and optionally `LANGSMITH_PROJECT`. Keep
-`LANGSMITH_HIDE_INPUTS=true` and `LANGSMITH_HIDE_OUTPUTS=true`; MiniAlpha's
-custom spans attach only bounded operational metadata such as latency, token
-counts, cache outcomes, retry attempts, and safe failure categories. See
-`docs/observability-evaluation.md` for the span contract and offline audit.
+### 2. Install Dependencies
 
-Install dependencies:
-
+You'll need `uv` installed. Run the following to sync the virtual environment:
 ```powershell
 uv sync
 ```
 
-Start PostgreSQL and Redis, then initialize the schema:
+### 3. Initialize Services
 
+Start PostgreSQL and Redis in the background, then initialize the database schema:
 ```powershell
+# 1. Start containers
 docker compose up -d postgres redis
+
+# 2. Run migrations (resolves Heads and builds tables)
 uv run python -m scripts.setup_database
 ```
+> **Note:** Use `docker compose down -v` only when intentionally deleting MiniAlpha's development database volume!
 
-Run `scripts.setup_database` when creating a new database, after intentionally
-removing its Docker volume, or after pulling a new migration. It is safe to
-rerun, but it is not required before every server start.
+### 4. Run the Application
 
-The Compose service maps host port `5433` to PostgreSQL's container port
-`5432`, allowing it to run beside a local PostgreSQL installation. Stop it
-without deleting data using:
-
-```powershell
-docker compose down
-```
-
-Use `docker compose down -v` only when intentionally deleting MiniAlpha's
-development database volume.
-
-Start the API:
-
+Start the FastAPI application:
 ```powershell
 uv run python -m scripts.run_api --reload
 ```
 
-In a second terminal, start the frontend:
-
+In a second terminal, start the React frontend:
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
+Open **[http://127.0.0.1:5173](http://127.0.0.1:5173)** to interact with the agent. 
 
-Open `http://127.0.0.1:5173`. The Vite development server proxies API requests
-to `http://127.0.0.1:8000`.
+---
 
-The project launcher selects the event loop required by async psycopg on
-Windows. It affects only this API process and does not modify laptop-wide
-Python or asyncio settings.
+## 🧪 Verification & Best Practices
 
-Interactive OpenAPI documentation is available at
-`http://127.0.0.1:8000/docs`.
-
-Check process liveness and dependency readiness:
+Run the credential-free suite and code-quality gates to verify system health:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
-Invoke-RestMethod http://127.0.0.1:8000/ready
-```
+# Run the test suite (disable cache if using Windows to avoid PermissionErrors)
+uv run pytest -p no:cacheprovider
 
-`/health` only proves the HTTP process is alive. `/ready` also verifies model
-composition, PostgreSQL persistence, and Redis connectivity.
-
-## Durable research
-
-Create a thread and execute its first turn:
-
-```powershell
-$requestKey = [guid]::NewGuid()
-$first = Invoke-RestMethod `
-  -Method Post `
-  -Uri http://127.0.0.1:8000/api/v1/threads/messages `
-  -ContentType application/json `
-  -Body (@{
-    messages = @(@{ role = "user"; content = "Analyze Apple." })
-    request_key = $requestKey
-  } | ConvertTo-Json -Depth 4)
-```
-
-Continue from the committed checkpoint without resending history:
-
-```powershell
-$second = Invoke-RestMethod `
-  -Method Post `
-  -Uri "http://127.0.0.1:8000/api/v1/threads/$($first.thread_id)/messages" `
-  -ContentType application/json `
-  -Body (@{
-    messages = @(@{
-      role = "user"
-      content = "Now compare it with Microsoft."
-    })
-    request_key = [guid]::NewGuid()
-  } | ConvertTo-Json -Depth 4)
-```
-
-Start a detached run, then attach a streaming HTTP client:
-
-```text
-POST /api/v1/threads/runs
-POST /api/v1/threads/{thread_id}/runs
-GET  /api/v1/runs/{run_id}/events
-POST /api/v1/runs/{run_id}/cancel
-```
-
-The stream emits `metadata`, `message_chunk`, `tool_call`, `tool_result`,
-`artifact`, `error`, and `run_end`. `metadata` is first and `run_end` is last.
-A successful or cancelled `run_end` is emitted only after the terminal
-PostgreSQL commit. Browser disconnects detach from SSE without cancelling the
-background run. Events are retained in one Redis Stream per `run_id`; reconnect
-with `Last-Event-ID` to replay only later events. Idle streams send SSE comment
-keepalives, and keys expire after `RUN_EVENT_RETENTION_SECONDS` (one day by
-default). The older `/messages/stream` endpoints remain available as
-compatibility wrappers around detached execution.
-
-On startup, the worker marks runs left `in_progress` by an earlier process as
-`error` with `process_interrupted`. Shutdown drains accepted work for
-`WORKER_SHUTDOWN_GRACE_SECONDS`; work still running after that deadline is
-interrupted and terminalized with the same error code. Individual model and
-tool steps are bounded by `MODEL_TIMEOUT_SECONDS` and `TOOL_TIMEOUT_SECONDS`,
-which produce `model_timeout` and `tool_timeout` terminal errors respectively.
-
-Clients should generate one `request_key` UUID per logical request and reuse it
-when retrying that same request. A completed retry returns the stored result
-with `"replayed": true` instead of running Gemini again.
-
-List threads and read the transcript:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/api/v1/threads
-Invoke-RestMethod `
-  "http://127.0.0.1:8000/api/v1/threads/$($first.thread_id)/messages"
-```
-
-## Stateless research and CLI
-
-Submit one independent API request:
-
-```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri http://127.0.0.1:8000/api/v1/research `
-  -ContentType application/json `
-  -Body '{"message":"Analyze Apple."}'
-```
-
-Run the interactive stateless CLI:
-
-```powershell
-uv run python cli.py
-```
-
-Both delivery paths share `ResearchAgentService`; the durable HTTP path adds
-the thread orchestration and checkpoint configuration around it.
-
-Exercise Yahoo directly without using Gemini:
-
-```powershell
-uv run python -m scripts.smoke_company AAPL MSFT BRK-B
-```
-
-Yahoo Finance data may be delayed, incomplete, or unavailable. MiniAlpha
-preserves missing values as `None`/`N/A` and does not silently turn them into
-zero. Expected provider and ticker failures remain completed agent results
-with structured error artifacts.
-
-## Verification
-
-Run the credential-free suite and code-quality gates:
-
-```powershell
-uv run pytest
+# Code Quality
 uv run ruff check .
 uv run ruff format --check .
 ```
+*(Tests for PostgreSQL integration are skipped unless their explicit test environment variable is enabled.)*
 
-The PostgreSQL integration tests are skipped unless their explicit test
-environment variable is enabled. The Phase 4–5 API guide documents the live
-database command.
+---
 
-## Code map
+## 💻 API & Research Workflows
 
+### Durable Research (With UI)
+You can directly interact via API for persistent multi-turn conversations:
+
+```powershell
+$requestKey = [guid]::NewGuid()
+$first = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/threads/messages -ContentType application/json -Body (@{ messages = @(@{ role = "user"; content = "Analyze Apple." }); request_key = $requestKey } | ConvertTo-Json -Depth 4)
+```
+Streams emit `metadata`, `message_chunk`, `tool_call`, `tool_result`, `artifact`, `error`, and `run_end`. The older stream endpoints are available as wrappers for detached execution.
+
+### Stateless Research & CLI
+Submit an independent stateless request:
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/research -ContentType application/json -Body '{"message":"Analyze Apple."}'
+```
+Or use the prompt interface via CLI:
+```powershell
+uv run python cli.py
+```
+*(Exercise Yahoo independently without Gemini: `uv run python -m scripts.smoke_company AAPL MSFT BRK-B`)*
+
+---
+
+## 🗺️ Code Map
 ```text
 app/config.py                    model and database configuration
 app/agent/                       explicit graph, state, tools, and routing
@@ -261,25 +127,21 @@ app/api/main.py                  FastAPI factory, lifespan, and error mapping
 app/api/routes/                  health, readiness, stateless, and thread routes
 app/api/schemas.py               strict public HTTP contracts
 app/domain/                      normalized company and fundamental datasets
-app/domain/prices.py             normalized OHLCV price-history contract
-app/domain/quantitative.py       structured calculation-result contract
 app/persistence/                 repository contract and memory/Postgres adapters
 app/providers/                   provider protocol and Yahoo implementation
-app/services/company_research.py provider-neutral financial-data orchestration
-app/services/quantitative_research.py deterministic market calculations
-app/services/research_agent.py   transport-neutral graph execution
-app/services/thread_research.py  durable admission, execution, and finalization
-app/services/run_manager.py      detached worker, event attachment, cancellation
+app/services/                    quantitative and company research orchestration
 app/events/store.py              Redis Streams replay and test event transport
 frontend/src/artifacts/          typed artifact guards and financial renderers
 migrations/                      application-owned PostgreSQL schema
-scripts/setup_database.py        Alembic and LangGraph checkpoint initialization
-scripts/run_api.py               psycopg-compatible API launcher
+scripts/                         database initialization and API launchers
 cli.py                           interactive stateless trace runner
 ```
 
-## Architecture rationale
+---
 
+## 📖 Architecture Rationale
+
+For historical decision logs encompassing system iterations, refer to:
 - [Phase 2 decision log](docs/phase-2-decision-log.md)
 - [Phase 3 decision log](docs/phase-3-decision-log.md)
 - [Phase 3 API guide](docs/phase-3-api.md)

@@ -5,17 +5,17 @@ model usage, cache behavior, and failures can be attributed to a specific step.
 LangChain and LangGraph may emit additional native traces; the names below are
 the MiniAlpha application contract and should remain stable across refactors.
 
-| Category | Stable span name | Required safe metadata |
-|---|---|---|
-| Research run | `mini_alpha.research_run` | `outcome`, `duration_ms` |
-| Intent routing | `routing.decision` | `selected_tool_count` |
-| Model call | `model.invoke` | `attempt`, input/output/total tokens |
-| Tool call | `tool.execute` | `attempt`, `outcome` |
-| Exact cache | `cache.exact` | `cache_status`, `cache_tier` |
-| Embedding | `cache.embedding` | `cache_status`, `cache_tier` |
-| Semantic cache | `cache.semantic` | `cache_status`, `cache_tier` |
-| Data provider | `provider.request` | `provider_operation`, `attempt` |
-| Persistence | `persistence.finalize` | `persistence_operation` |
+| Category       | Stable span name          | Required safe metadata               |
+| -------------- | ------------------------- | ------------------------------------ |
+| Research run   | `mini_alpha.research_run` | `outcome`, `duration_ms`             |
+| Intent routing | `routing.decision`        | `selected_tool_count`                |
+| Model call     | `model.invoke`            | `attempt`, input/output/total tokens |
+| Tool call      | `tool.execute`            | `attempt`, `outcome`                 |
+| Exact cache    | `cache.exact`             | `cache_status`, `cache_tier`         |
+| Embedding      | `cache.embedding`         | `cache_status`, `cache_tier`         |
+| Semantic cache | `cache.semantic`          | `cache_status`, `cache_tier`         |
+| Data provider  | `provider.request`        | `provider_operation`, `attempt`      |
+| Persistence    | `persistence.finalize`    | `persistence_operation`              |
 
 Error spans additionally require a stable, sanitized `error_type`. They do not
 carry raw exception messages, prompts, symbols, provider URLs, credentials, or

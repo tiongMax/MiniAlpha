@@ -108,6 +108,7 @@ class CompanyResearchService:
     async def get_financial_statements(
         self, symbol: str, *, frequency: str = "yearly"
     ) -> FundamentalDataset:
+        """Retrieve recent income, balance sheet, and cash flow statements."""
         normalized_frequency = _STATEMENT_FREQUENCY_ALIASES.get(
             frequency.strip().lower()
         )
@@ -120,13 +121,16 @@ class CompanyResearchService:
         )
 
     async def get_fundamental_ratios(self, symbol: str) -> FundamentalDataset:
+        """Fetch pre-calculated financial ratios (P/E, margins, ROA, etc)."""
         return await self.provider.get_fundamental_ratios(normalize_symbol(symbol))
 
     async def get_analyst_estimates(self, symbol: str) -> FundamentalDataset:
+        """Retrieve consensus revenue, EPS, and price-target estimates."""
         return await self.provider.get_analyst_estimates(normalize_symbol(symbol))
 
     @staticmethod
     def _limit(limit: int) -> int:
+        """Validate and cap list length limits."""
         if isinstance(limit, bool) or not 1 <= limit <= 20:
             raise InvalidFundamentalQueryError("Choose a result limit from 1 to 20.")
         return limit
@@ -134,6 +138,7 @@ class CompanyResearchService:
     async def get_sec_filings(
         self, symbol: str, *, limit: int = 10
     ) -> FundamentalDataset:
+        """Locate recent EDGAR filings and structured metadata."""
         normalized_limit = self._limit(limit)
         return await self.provider.get_sec_filings(
             normalize_symbol(symbol), limit=normalized_limit
@@ -142,6 +147,7 @@ class CompanyResearchService:
     async def get_ownership(
         self, symbol: str, *, limit: int = 10
     ) -> FundamentalDataset:
+        """Query top institutional or mutual fund holders."""
         normalized_limit = self._limit(limit)
         return await self.provider.get_ownership(
             normalize_symbol(symbol), limit=normalized_limit
@@ -150,6 +156,7 @@ class CompanyResearchService:
     async def get_insider_activity(
         self, symbol: str, *, limit: int = 10
     ) -> FundamentalDataset:
+        """Report latest executive and director share transactions."""
         normalized_limit = self._limit(limit)
         return await self.provider.get_insider_activity(
             normalize_symbol(symbol), limit=normalized_limit
@@ -158,12 +165,14 @@ class CompanyResearchService:
     async def get_company_news(
         self, symbol: str, *, limit: int = 8
     ) -> FundamentalDataset:
+        """Scrape recent news headlines and publication URLs."""
         normalized_limit = self._limit(limit)
         return await self.provider.get_company_news(
             normalize_symbol(symbol), limit=normalized_limit
         )
 
     async def compare_companies(self, symbols: list[str]) -> FundamentalDataset:
+        """Assemble parallel metrics across multiple competitors concurrently."""
         normalized = list(dict.fromkeys(normalize_symbol(symbol) for symbol in symbols))
         if not 2 <= len(normalized) <= 5:
             raise InvalidFundamentalQueryError(

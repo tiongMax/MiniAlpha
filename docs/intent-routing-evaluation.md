@@ -24,13 +24,13 @@ or client failures are not confused with tool-selection behavior.
 
 ## First live result
 
-| Metric | Fixed 16 | Intent routed |
-|---|---:|---:|
-| Scheduled trials | 100 | 100 |
-| Completed trials | 99 | 96 |
-| All-trial selection errors | 14 (14.0%) | 12 (12.0%) |
-| Completed-run selection errors | 13/99 (13.1%) | 8/96 (8.3%) |
-| Mean schemas exposed | 16.00 | 2.11 |
+| Metric                         |      Fixed 16 | Intent routed |
+| ------------------------------ | ------------: | ------------: |
+| Scheduled trials               |           100 |           100 |
+| Completed trials               |            99 |            96 |
+| All-trial selection errors     |    14 (14.0%) |    12 (12.0%) |
+| Completed-run selection errors | 13/99 (13.1%) |   8/96 (8.3%) |
+| Mean schemas exposed           |         16.00 |          2.11 |
 
 Among the 95 pairs where both variants completed, routing corrected seven
 fixed-binding errors and introduced two errors; six pairs failed selection in
@@ -64,4 +64,3 @@ reduced completed-run selection errors from **13.1% to 8.3%** in this locked
 100-query run while reducing exposed schemas by **86.8%**. It does **not**
 support the original **21% to 9%** wording. That number should not be used
 unless a future locked, repeated experiment actually measures it.
-

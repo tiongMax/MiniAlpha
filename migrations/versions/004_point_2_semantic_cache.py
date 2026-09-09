@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "004_point_2_semantic_cache"
-down_revision: str | Sequence[str] | None = "003_phase_7_partial_cancel"
+down_revision: str | Sequence[str] | None = "004_grounding_provenance"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -96,4 +96,3 @@ The frozen suite is reproducible but synthetic. It does not establish current li
 quality, human-versus-LLM-judge agreement, latency, or cost. A real baseline requires a
 separately named live configuration, captured provider snapshots, repeated trials, and
 honest reporting of the environment and any unavailable usage metadata.
-

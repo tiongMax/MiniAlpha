@@ -139,9 +139,9 @@ history from transcript rows; it resumes from the published checkpoint.
 - Retrying the same thread and message after completion returns the stored
   answer, tool calls, and artifacts with `replayed: true`.
 - Retrying while the original run remains active returns `409
-  run_in_progress`.
+run_in_progress`.
 - Reusing the key for different content or a different thread returns `409
-  request_key_conflict`.
+request_key_conflict`.
 - Retrying a terminal failed run returns its stored controlled failure without
   running the graph again.
 
@@ -208,19 +208,19 @@ Controlled failures use:
 }
 ```
 
-| Status | Code | Meaning |
-|---|---|---|
-| `404` | `thread_not_found` | The requested thread does not exist |
-| `404` | `run_not_found` | A stored run could not be resolved |
-| `409` | `request_key_conflict` | An idempotency key identifies another request |
-| `409` | `run_in_progress` | The thread already has an active run |
-| `409` | `thread_conflict` | The published checkpoint changed during execution |
-| `409` | `run_conflict` | A terminal run rejected another lifecycle transition |
-| `422` | FastAPI validation detail | Input does not match the strict contract |
-| `502` | `research_failed` or stored run code | Model or graph execution failed |
-| `503` | `research_unavailable` | Stateless research composition is unavailable |
-| `503` | `persistence_unavailable` | PostgreSQL/thread composition is unavailable |
-| `500` | `internal_error` | An unexpected server failure occurred |
+| Status | Code                                 | Meaning                                              |
+| ------ | ------------------------------------ | ---------------------------------------------------- |
+| `404`  | `thread_not_found`                   | The requested thread does not exist                  |
+| `404`  | `run_not_found`                      | A stored run could not be resolved                   |
+| `409`  | `request_key_conflict`               | An idempotency key identifies another request        |
+| `409`  | `run_in_progress`                    | The thread already has an active run                 |
+| `409`  | `thread_conflict`                    | The published checkpoint changed during execution    |
+| `409`  | `run_conflict`                       | A terminal run rejected another lifecycle transition |
+| `422`  | FastAPI validation detail            | Input does not match the strict contract             |
+| `502`  | `research_failed` or stored run code | Model or graph execution failed                      |
+| `503`  | `research_unavailable`               | Stateless research composition is unavailable        |
+| `503`  | `persistence_unavailable`            | PostgreSQL/thread composition is unavailable         |
+| `500`  | `internal_error`                     | An unexpected server failure occurred                |
 
 Expected ticker and provider failures still return completed agent results,
 usually HTTP `200`, with `status: "error"` artifacts. They are evidence-level

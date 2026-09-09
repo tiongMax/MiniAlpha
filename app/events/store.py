@@ -64,6 +64,7 @@ class InMemoryRunEventStore:
         max_streams: int | None = None,
         max_events_per_stream: int | None = None,
     ) -> None:
+        """Initialize the in-memory store with optional capacity limits."""
         if max_streams is not None and max_streams < 1:
             raise ValueError("max_streams must be positive")
         if max_events_per_stream is not None and max_events_per_stream < 1:
@@ -73,6 +74,7 @@ class InMemoryRunEventStore:
         self._streams: OrderedDict[UUID, _MemoryStream] = OrderedDict()
 
     def _stream(self, run_id: UUID) -> _MemoryStream:
+        """Get or create the stream backing a run."""
         stream = self._streams.get(run_id)
         if stream is not None:
             self._streams.move_to_end(run_id)
@@ -92,6 +94,7 @@ class InMemoryRunEventStore:
         return stream
 
     async def publish(self, event: RunEvent) -> None:
+        """Publish an event to the local stream buffer."""
         stream = self._stream(event.run_id)
         async with stream.changed:
             if stream.terminal:
@@ -111,6 +114,7 @@ class InMemoryRunEventStore:
         *,
         after_event_id: int = 0,
     ) -> AsyncIterator[RunEvent]:
+        """Yield events as they arrive after the specified cursor."""
         stream = self._stream(run_id)
         cursor = after_event_id
         while True:
@@ -132,18 +136,22 @@ class InMemoryRunEventStore:
                 return
 
     async def exists(self, run_id: UUID) -> bool:
+        """Determine if a stream exists for the run."""
         return run_id in self._streams
 
     async def latest(self, run_id: UUID) -> RunEvent | None:
+        """Return the most recently written event for the run."""
         stream = self._streams.get(run_id)
         if stream is not None:
             self._streams.move_to_end(run_id)
         return stream.events[-1] if stream and stream.events else None
 
     async def is_ready(self) -> bool:
+        """Verify the store accepts traffic (always true for in-memory)."""
         return True
 
     async def close(self) -> None:
+        """Release any internal store resources."""
         return None
 
 
@@ -176,6 +184,7 @@ class ResilientRunEventStore:
         max_diagnostics: int = 100,
         publish_timeout_seconds: float = 1.0,
     ) -> None:
+        """Initialize with a primary persistent transport and fallback bounds."""
         if max_diagnostics < 1:
             raise ValueError("max_diagnostics must be positive")
         if publish_timeout_seconds <= 0:
@@ -198,6 +207,7 @@ class ResilientRunEventStore:
         return tuple(self._diagnostics)
 
     async def publish(self, event: RunEvent) -> None:
+        """Attempt primary publish falling back to local buffer on failure."""
         await self._fallback.publish(event)
         try:
             await asyncio.wait_for(
@@ -224,6 +234,7 @@ class ResilientRunEventStore:
                 )
 
     def _mark_degraded(self, run_id: UUID) -> bool:
+        """Promote a run to degraded status where readers consume the fallback."""
         first_failure = run_id not in self._degraded_runs
         self._degraded_runs[run_id] = None
         self._degraded_runs.move_to_end(run_id)
@@ -237,6 +248,7 @@ class ResilientRunEventStore:
         *,
         after_event_id: int = 0,
     ) -> AsyncIterator[RunEvent]:
+        """Replay events preferring the primary store unless degraded."""
         if run_id in self._degraded_runs:
             async for event in self._fallback.events(
                 run_id,
@@ -251,11 +263,13 @@ class ResilientRunEventStore:
             yield event
 
     async def exists(self, run_id: UUID) -> bool:
+        """Determine if a stream exists favoring the degraded store if active."""
         if run_id in self._degraded_runs:
             return await self._fallback.exists(run_id)
         return await self._primary.exists(run_id) or await self._fallback.exists(run_id)
 
     async def latest(self, run_id: UUID) -> RunEvent | None:
+        """Return the most recently written event, preferring the primary store."""
         if run_id in self._degraded_runs:
             return await self._fallback.latest(run_id)
         primary = await self._primary.latest(run_id)
@@ -264,9 +278,11 @@ class ResilientRunEventStore:
         return await self._fallback.latest(run_id)
 
     async def is_ready(self) -> bool:
+        """Verify the primary store is ready."""
         return await self._primary.is_ready()
 
     async def close(self) -> None:
+        """Release both fallback and primary store resources."""
         await self._fallback.close()
         await self._primary.close()
 
@@ -282,6 +298,7 @@ class RedisRunEventStore:
         read_block_milliseconds: int = 1_000,
         key_prefix: str = "mini-alpha:runs",
     ) -> None:
+        """Initialize the Redis client wrappers."""
         self._client = client
         self._retention_seconds = retention_seconds
         self._read_block_milliseconds = read_block_milliseconds
@@ -311,9 +328,11 @@ class RedisRunEventStore:
             raise
 
     def _key(self, run_id: UUID) -> str:
+        """Format the specific Redis event stream string key."""
         return f"{self._key_prefix}:{run_id}:events"
 
     async def publish(self, event: RunEvent) -> None:
+        """Save a new event immediately to the Redis Stream."""
         payload = json.dumps(
             event.to_dict(),
             ensure_ascii=False,
@@ -334,6 +353,7 @@ class RedisRunEventStore:
         *,
         after_event_id: int = 0,
     ) -> AsyncIterator[RunEvent]:
+        """Yield Redis events blocked until run termination is witnessed."""
         key = self._key(run_id)
         cursor = f"{after_event_id}-0"
         latest = await self._client.xrevrange(key, count=1)
@@ -362,9 +382,11 @@ class RedisRunEventStore:
                         return
 
     async def exists(self, run_id: UUID) -> bool:
+        """Check if an unexpired event stream exists in Redis."""
         return bool(await self._client.exists(self._key(run_id)))
 
     async def latest(self, run_id: UUID) -> RunEvent | None:
+        """Retrieve the maximum sequence event without consuming the stream."""
         entries = await self._client.xrevrange(self._key(run_id), count=1)
         if not entries:
             return None
@@ -372,12 +394,14 @@ class RedisRunEventStore:
         return self._decode(fields["event"])
 
     async def is_ready(self) -> bool:
+        """Check if Redis responds to generic ping operations."""
         try:
             return bool(await self._client.ping())
         except Exception:
             return False
 
     async def close(self) -> None:
+        """Close the Redis client pool properly."""
         await self._client.aclose()
 
     @staticmethod

@@ -45,14 +45,14 @@ The workload includes cold requests, exact repeats, valid paraphrases,
 adversarial symbol/period near misses, relative-time suppression, and repeated
 provider errors.
 
-| Metric | Cache disabled | Cache enabled |
-|---|---:|---:|
-| Requests | 13 | 13 |
-| Generation tokens | 1,300 | 800 |
-| Correct cache-policy outcomes | 13 | 13 |
-| Exact hits | 0 | 3 |
-| Semantic hits | 0 | 2 |
-| False semantic hits | 0 | 0 |
+| Metric                        | Cache disabled | Cache enabled |
+| ----------------------------- | -------------: | ------------: |
+| Requests                      |             13 |            13 |
+| Generation tokens             |          1,300 |           800 |
+| Correct cache-policy outcomes |             13 |            13 |
+| Exact hits                    |              0 |             3 |
+| Semantic hits                 |              0 |             2 |
+| False semantic hits           |              0 |             0 |
 
 Measured generation-token reduction was **38.5%**. Warm exact-hit median
 latency was **0.279 ms**, compared with **15.210 ms** for cache-enabled cold
@@ -64,4 +64,3 @@ not substantiate the original résumé values of **28%** and **2.1 s to 120 ms**
 Those numbers require a separately frozen live workload against deployed Redis,
 pgvector, Gemini embeddings, and Gemini generation. Until that run exists, use
 the measured deterministic result only with its scope stated clearly.
-
