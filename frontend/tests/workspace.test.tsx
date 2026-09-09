@@ -12,6 +12,7 @@ let requests: string[]
 let artifacts: Artifact[]
 let storedTurns: ThreadTurn[]
 let failure: boolean
+let marketRequests: string[][]
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -33,9 +34,31 @@ beforeEach(() => {
   ]
   storedTurns = []
   failure = false
+  marketRequests = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string, init?: RequestInit) => {
+      if (input.endsWith('/api/v1/market/watchlist')) {
+        const symbols = JSON.parse(init?.body as string).symbols as string[]
+        marketRequests.push(symbols)
+        return json({
+          items: symbols.map((symbol) => ({
+            status: 'ok',
+            symbol,
+            currency: 'USD',
+            latest_price: 11.5,
+            previous_close: 11,
+            daily_change: 0.5,
+            daily_change_percent: 0.04545,
+            latest_observation_at: DATE,
+            annualized_volatility_30d: 0.2,
+            maximum_drawdown_3m: -0.1,
+            provider: 'Fixture Finance',
+            retrieved_at: DATE,
+            quality_warnings: [],
+          })),
+        })
+      }
       if (input.includes('/messages')) return json({ thread_id: THREAD, turns: storedTurns })
       if (input.includes('/events')) {
         storedTurns = [
@@ -85,6 +108,26 @@ beforeEach(() => {
       return json({ threads: [], total: 0, limit: 100, offset: 0 })
     }),
   )
+})
+
+it('loads one market-data batch and renders watchlist prices', async () => {
+  localStorage.setItem(
+    'minialpha.personal-research.v1',
+    JSON.stringify({
+      watchlist: [
+        { symbol: 'MSFT', addedAt: DATE },
+        { symbol: 'AAPL', addedAt: DATE },
+      ],
+      journal: [],
+    }),
+  )
+
+  mount()
+
+  expect(await screen.findAllByText(/\$11\.50/)).toHaveLength(2)
+  expect(screen.getAllByText('+4.5%')).toHaveLength(2)
+  expect(screen.getAllByText('20.0% vol · -10.0% DD')).toHaveLength(2)
+  expect(marketRequests).toEqual([['MSFT', 'AAPL']])
 })
 
 function mount() {

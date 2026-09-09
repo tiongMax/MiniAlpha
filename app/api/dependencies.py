@@ -20,6 +20,7 @@ from app.persistence.runtime import PersistenceRuntime
 from app.services.research_agent import ResearchAgentService, ResearchGraph
 from app.services.run_manager import DetachedRunManager
 from app.services.thread_research import ThreadResearchService
+from app.services.watchlist_market import WatchlistMarketService
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,10 @@ class ThreadServiceUnavailableError(RuntimeError):
 
 class RunManagerUnavailableError(RuntimeError):
     """Raised when detached execution is unavailable."""
+
+
+class MarketDataServiceUnavailableError(RuntimeError):
+    """Raised when watchlist market data is unavailable."""
 
 
 async def create_research_service() -> tuple[ResearchAgentService, CacheRuntime | None]:
@@ -112,3 +117,11 @@ def get_run_manager(request: Request) -> DetachedRunManager:
     if not isinstance(manager, DetachedRunManager):
         raise RunManagerUnavailableError("Detached execution is unavailable.")
     return manager
+
+
+def get_watchlist_market_service(request: Request) -> WatchlistMarketService:
+    """Return the application-scoped watchlist market-data service."""
+    service = getattr(request.app.state, "watchlist_market_service", None)
+    if not isinstance(service, WatchlistMarketService):
+        raise MarketDataServiceUnavailableError("Market data is unavailable.")
+    return service

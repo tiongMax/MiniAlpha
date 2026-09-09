@@ -6,6 +6,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.domain.errors import InvalidSymbolError
+from app.services.company_research import normalize_symbol
+
 
 class ResearchRequest(BaseModel):
     """One stateless natural-language research request."""
@@ -257,3 +260,58 @@ class RunCancellationResponse(BaseModel):
     run_id: UUID
     thread_id: UUID
     status: Literal["cancelled"]
+
+
+class WatchlistMarketRequest(BaseModel):
+    """A bounded, de-duplicated watchlist refresh request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    symbols: list[str] = Field(min_length=1, max_length=25)
+
+    @field_validator("symbols")
+    @classmethod
+    def normalize_symbols(cls, values: list[str]) -> list[str]:
+        """Normalize symbols while preserving the caller's display order."""
+        try:
+            normalized = list(
+                dict.fromkeys(normalize_symbol(value) for value in values)
+            )
+        except InvalidSymbolError as error:
+            raise ValueError(str(error)) from error
+        if not normalized:
+            raise ValueError("provide at least one ticker symbol")
+        return normalized
+
+
+class WatchlistMarketItemResponse(BaseModel):
+    """Latest observation and risk summary for one watchlist symbol."""
+
+    status: Literal["ok"]
+    symbol: str
+    currency: str | None
+    latest_price: float
+    previous_close: float
+    daily_change: float
+    daily_change_percent: float
+    latest_observation_at: datetime
+    annualized_volatility_30d: float | None
+    maximum_drawdown_3m: float
+    provider: str
+    retrieved_at: datetime
+    quality_warnings: list[str]
+
+
+class WatchlistMarketFailureResponse(BaseModel):
+    """One failed symbol in an otherwise usable watchlist response."""
+
+    status: Literal["error"]
+    symbol: str
+    code: Literal["symbol_not_found", "provider_unavailable"]
+    message: str
+
+
+class WatchlistMarketResponse(BaseModel):
+    """Ordered results for one batch market-data refresh."""
+
+    items: list[WatchlistMarketItemResponse | WatchlistMarketFailureResponse]

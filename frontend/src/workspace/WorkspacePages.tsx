@@ -6,12 +6,14 @@ import {
   Building2,
   FlaskConical,
   Plus,
+  RefreshCw,
   Trash2,
 } from 'lucide-react'
 import type { usePersonalResearch } from '../personal/usePersonalResearch'
 import type { ResearchChatController } from '../chat/ResearchChat'
 import type { Artifact } from '../types'
 import { ResearchResult } from './ResearchResult'
+import { useWatchlistMarketData } from './useWatchlistMarketData'
 import {
   comparisonError,
   navigate,
@@ -97,6 +99,35 @@ function TickerForm({ personal }: { personal: PersonalResearch }) {
 }
 
 export function OverviewPage({ personal, documents, chat, onOpenAssistant }: PageProps) {
+  const symbols = personal.watchlist.map((item) => item.symbol)
+  const market = useWatchlistMarketData(symbols)
+  const marketBySymbol = new Map((market.data?.items ?? []).map((item) => [item.symbol, item]))
+  const formatPrice = (price: number, currency: string | null) => {
+    if (!currency) return price.toLocaleString(undefined, { maximumFractionDigits: 2 })
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 2,
+      }).format(price)
+    } catch {
+      return `${currency} ${price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+    }
+  }
+  const formatPercent = (value: number) =>
+    new Intl.NumberFormat(undefined, {
+      style: 'percent',
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }).format(value)
+  const formatSignedPercent = (value: number) =>
+    new Intl.NumberFormat(undefined, {
+      style: 'percent',
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+      signDisplay: 'exceptZero',
+    }).format(value)
+
   return (
     <>
       <PageIntro
@@ -131,18 +162,28 @@ export function OverviewPage({ personal, documents, chat, onOpenAssistant }: Pag
         <section className="surface watchlist-surface">
           <header className="surface-heading">
             <h2>Your watchlist</h2>
-            <span className="subtle-badge">Personal</span>
+            <button
+              className="text-button refresh-market-button"
+              disabled={!symbols.length || market.isFetching}
+              onClick={() => void market.refetch()}
+            >
+              <RefreshCw size={12} className={market.isFetching ? 'is-spinning' : ''} />
+              {market.isFetching ? 'Refreshing…' : 'Refresh prices'}
+            </button>
           </header>
           <TickerForm personal={personal} />
           {personal.watchlist.length ? (
             <div className="watchlist-table">
               <div className="watchlist-row table-label">
                 <span>Company</span>
-                <span>Last research</span>
+                <span>Price</span>
+                <span>Day</span>
+                <span>Risk</span>
+                <span>As of</span>
                 <span />
               </div>
               {personal.watchlist.map((item) => {
-                const doc = documents.find((entry) => entry.symbols.includes(item.symbol))
+                const snapshot = marketBySymbol.get(item.symbol)
                 return (
                   <div className="watchlist-row" key={item.symbol}>
                     <button
@@ -153,13 +194,52 @@ export function OverviewPage({ personal, documents, chat, onOpenAssistant }: Pag
                       <strong>{item.symbol}</strong>
                       <ArrowUpRight size={13} />
                     </button>
-                    <span className="muted">
-                      {doc
-                        ? new Date(doc.updatedAt).toLocaleDateString(undefined, {
+                    <span className="market-price">
+                      {snapshot?.status === 'ok'
+                        ? formatPrice(snapshot.latest_price, snapshot.currency)
+                        : '—'}
+                    </span>
+                    <span
+                      className={
+                        snapshot?.status === 'ok'
+                          ? snapshot.daily_change_percent > 0
+                            ? 'market-change positive'
+                            : snapshot.daily_change_percent < 0
+                              ? 'market-change negative'
+                              : 'market-change'
+                          : 'muted'
+                      }
+                    >
+                      {snapshot?.status === 'ok'
+                        ? formatSignedPercent(snapshot.daily_change_percent)
+                        : snapshot?.status === 'error'
+                          ? 'Unavailable'
+                          : '—'}
+                    </span>
+                    <span
+                      className="market-risk muted"
+                      title="30-day annualized volatility · 3-month maximum drawdown"
+                    >
+                      {snapshot?.status === 'ok'
+                        ? `${snapshot.annualized_volatility_30d === null ? '—' : formatPercent(snapshot.annualized_volatility_30d)} vol · ${formatPercent(snapshot.maximum_drawdown_3m)} DD`
+                        : '—'}
+                    </span>
+                    <span
+                      className="market-observation muted"
+                      title={
+                        snapshot?.status === 'ok'
+                          ? new Date(snapshot.latest_observation_at).toLocaleString()
+                          : snapshot?.status === 'error'
+                            ? snapshot.message
+                            : undefined
+                      }
+                    >
+                      {snapshot?.status === 'ok'
+                        ? new Date(snapshot.latest_observation_at).toLocaleDateString(undefined, {
                             month: 'short',
                             day: 'numeric',
                           })
-                        : 'Not researched'}
+                        : '—'}
                     </span>
                     <button
                       className="icon-button remove-button"
@@ -179,7 +259,11 @@ export function OverviewPage({ personal, documents, chat, onOpenAssistant }: Pag
               <p>Add a ticker above to create your personal research desk.</p>
             </div>
           )}
-          <p className="surface-footnote">Open a company to retrieve its latest available data.</p>
+          <p className={`surface-footnote ${market.isError ? 'inline-error' : ''}`}>
+            {market.isError
+              ? `${market.error.message} Use Refresh prices to try again.`
+              : 'Prices refresh every minute while this dashboard is open. Risk shows 30-day annualized volatility and three-month maximum drawdown.'}
+          </p>
         </section>
         <section className="surface">
           <header className="surface-heading">
