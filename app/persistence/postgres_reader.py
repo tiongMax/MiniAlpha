@@ -137,6 +137,7 @@ class PostgresConversationReader:
                            data,
                            error,
                            failure,
+                           provenance,
                            created_at
                     FROM conversation_artifacts
                     WHERE conversation_response_id = ANY(%s)
@@ -251,6 +252,7 @@ class PostgresConversationReader:
                    data,
                    error,
                    failure,
+                   provenance,
                    created_at
             FROM conversation_artifacts
             WHERE conversation_response_id = %s

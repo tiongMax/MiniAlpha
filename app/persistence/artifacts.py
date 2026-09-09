@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal, cast
+from uuid import UUID
 
 from app.agent.failures import parse_structured_failure
 
@@ -11,16 +12,31 @@ from app.agent.failures import parse_structured_failure
 class ParsedArtifact:
     """Validated fields ready for persistence."""
 
+    artifact_id: UUID | None
     artifact_type: str
     schema_version: int
     status: Literal["ok", "error"]
     data: dict[str, object] | None
     error: str | None
     failure: dict[str, object] | None
+    provenance: dict[str, object] | None
 
 
 def parse_artifact(artifact: Mapping[str, object]) -> ParsedArtifact:
     """Validate one versioned artifact envelope before storing it."""
+    raw_artifact_id = artifact.get("artifact_id")
+    if raw_artifact_id is None:
+        artifact_id = None
+    else:
+        try:
+            artifact_id = (
+                raw_artifact_id
+                if isinstance(raw_artifact_id, UUID)
+                else UUID(str(raw_artifact_id))
+            )
+        except (TypeError, ValueError, AttributeError) as error:
+            raise ValueError("Artifact ID must be a UUID when supplied.") from error
+
     artifact_type = artifact.get("artifact_type")
     if not isinstance(artifact_type, str) or not artifact_type:
         raise ValueError("Artifact type must be a non-empty string.")
@@ -68,11 +84,17 @@ def parse_artifact(artifact: Mapping[str, object]) -> ParsedArtifact:
         else:
             raise ValueError("Artifact failure must be a structured object.")
 
+    raw_provenance = artifact.get("provenance")
+    if raw_provenance is not None and not isinstance(raw_provenance, dict):
+        raise ValueError("Artifact provenance must be an object when supplied.")
+
     return ParsedArtifact(
+        artifact_id=artifact_id,
         artifact_type=artifact_type,
         schema_version=schema_version,
         status=status,
         data=data,
         error=error,
         failure=failure,
+        provenance=cast(dict[str, object], raw_provenance),
     )

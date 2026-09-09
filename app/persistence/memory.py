@@ -326,7 +326,7 @@ class InMemoryConversationRepository:
     ) -> StoredArtifact:
         parsed = parse_artifact(artifact)
         return StoredArtifact(
-            artifact_id=uuid4(),
+            artifact_id=parsed.artifact_id or uuid4(),
             run_id=run_id,
             ordinal=ordinal,
             artifact_type=parsed.artifact_type,
@@ -335,5 +335,6 @@ class InMemoryConversationRepository:
             data=parsed.data,
             error=parsed.error,
             failure=parsed.failure,
+            provenance=parsed.provenance,
             created_at=created_at,
         )

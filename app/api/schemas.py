@@ -77,6 +77,10 @@ class ArtifactResponse(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    artifact_id: UUID | None = Field(
+        default=None,
+        description="Stable application-owned evidence identity.",
+    )
     artifact_type: str = Field(
         description="Discriminator for the tool-specific artifact payload."
     )
@@ -98,6 +102,9 @@ class ArtifactResponse(BaseModel):
     failure: FailureResponse | None = Field(
         default=None,
         description="Versioned recovery metadata when status is error.",
+    provenance: dict[str, object] | None = Field(
+        default=None,
+        description="Explicit provider, period, entity, and calculation metadata.",
     )
 
 

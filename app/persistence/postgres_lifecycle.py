@@ -87,6 +87,7 @@ class PostgresRunLifecycle:
                         await cursor.execute(
                             """
                             INSERT INTO conversation_artifacts (
+                                artifact_id,
                                 conversation_response_id,
                                 ordinal,
                                 artifact_type,
@@ -94,11 +95,15 @@ class PostgresRunLifecycle:
                                 status,
                                 data,
                                 error,
-                                failure
+                                failure,
+                                provenance
                             )
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            VALUES (
+                                COALESCE(%s, gen_random_uuid()),
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s
+                            )
                             """,
-                            (run_id, *values),
+                            (values[0], run_id, *values[1:]),
                         )
 
                     completed = await self._reader.fetch_run(cursor, run_id)
@@ -214,6 +219,7 @@ class PostgresRunLifecycle:
                         await cursor.execute(
                             """
                             INSERT INTO conversation_artifacts (
+                                artifact_id,
                                 conversation_response_id,
                                 ordinal,
                                 artifact_type,
@@ -221,11 +227,15 @@ class PostgresRunLifecycle:
                                 status,
                                 data,
                                 error,
-                                failure
+                                failure,
+                                provenance
                             )
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            VALUES (
+                                COALESCE(%s, gen_random_uuid()),
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s
+                            )
                             """,
-                            (run_id, *values),
+                            (values[0], run_id, *values[1:]),
                         )
                     await cursor.execute(
                         """

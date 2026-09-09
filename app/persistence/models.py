@@ -55,6 +55,7 @@ class StoredArtifact:
     data: dict[str, object] | None
     error: str | None
     failure: dict[str, object] | None
+    provenance: dict[str, object] | None
     created_at: datetime
 
 

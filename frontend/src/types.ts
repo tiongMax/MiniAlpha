@@ -29,11 +29,13 @@ export interface ToolCall {
 }
 
 export interface Artifact {
+  artifact_id?: string | null
   artifact_type: string
   schema_version: number
   status: 'ok' | 'error'
   data?: Record<string, unknown> | null
   error?: string | null
+  provenance?: Record<string, unknown> | null
 }
 
 export interface ThreadTurn {
