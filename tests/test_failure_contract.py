@@ -158,7 +158,8 @@ def test_memory_repository_and_api_schema_preserve_failure() -> None:
 def test_postgres_record_conversions_include_failure_json() -> None:
     """SQL parameters and hydrated records retain the structured object."""
     values = artifact_values(4, _error_artifact())
-    assert values[:6] == (
+    assert values[:7] == (
+        None,
         4,
         "price_history",
         1,
@@ -166,7 +167,7 @@ def test_postgres_record_conversions_include_failure_json() -> None:
         None,
         "Price history is temporarily unavailable.",
     )
-    assert values[6] is not None
+    assert values[7] is not None
 
     now = datetime(2026, 8, 13, tzinfo=UTC)
     row = {
@@ -179,6 +180,7 @@ def test_postgres_record_conversions_include_failure_json() -> None:
         "data": None,
         "error": "Price history is temporarily unavailable.",
         "failure": _provider_failure(),
+        "provenance": None,
         "created_at": now,
     }
     stored = artifact_from_row(row)

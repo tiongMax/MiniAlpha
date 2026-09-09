@@ -8,15 +8,22 @@ from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
     SystemMessage,
+    ToolMessage,
     message_chunk_to_message,
 )
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 
-from app.agent.errors import ModelInvocationTimeout
+from app.agent.errors import ModelInvocationTimeout, ToolInvocationTimeout
 from app.agent.intent_router import IntentRoute, IntentRouter
 from app.agent.nodes import route_after_model
+from app.agent.orchestration import (
+    TOOL_CAPABILITIES,
+    validate_tool_arguments,
+    validation_error_artifact,
+    validation_error_message,
+)
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.retry import is_transient_model_error
 from app.agent.state import ResearchState, RoutingState
@@ -182,8 +189,62 @@ def build_graph(
         raise AssertionError("unreachable model retry state")
 
     async def call_tools(state: ResearchState) -> ResearchState:
-        """Run sibling calls with per-call deadlines and structured failures."""
-        return await selected_tool_node(selected_names(state)).ainvoke(state)
+        """Validate and run one tool step within its configured deadline."""
+        tool_node = selected_tool_node(selected_names(state))
+        last_message = state["messages"][-1]
+        if not isinstance(last_message, AIMessage):
+            return await tool_node.ainvoke(state)
+
+        executable_calls: list[dict[str, object]] = []
+        results_by_call_id: dict[str, ToolMessage] = {}
+        call_order: list[str] = []
+        for index, call in enumerate(last_message.tool_calls):
+            call_id = str(call.get("id") or f"tool-call-{index}")
+            call_order.append(call_id)
+            tool_name = str(call.get("name") or "")
+            raw_arguments = call.get("args")
+            arguments = raw_arguments if isinstance(raw_arguments, dict) else {}
+            if tool_name not in TOOL_CAPABILITIES:
+                executable_calls.append({**call, "id": call_id})
+                continue
+            validation = validate_tool_arguments(tool_name, arguments)
+            if validation.is_valid:
+                executable_calls.append(
+                    {
+                        **call,
+                        "id": call_id,
+                        "args": dict(validation.arguments),
+                    }
+                )
+                continue
+            results_by_call_id[call_id] = ToolMessage(
+                content=validation_error_message(validation),
+                tool_call_id=call_id,
+                name=tool_name or "unknown",
+                artifact=validation_error_artifact(validation),
+                status="error",
+            )
+
+        if executable_calls:
+            execution_message = last_message.model_copy(
+                update={"tool_calls": executable_calls}
+            )
+            execution_state = {
+                **state,
+                "messages": [*state["messages"][:-1], execution_message],
+            }
+            executed = await tool_node.ainvoke(execution_state)
+            for message in executed["messages"]:
+                if isinstance(message, ToolMessage):
+                    results_by_call_id[message.tool_call_id] = message
+
+        return {
+            "messages": [
+                results_by_call_id[call_id]
+                for call_id in call_order
+                if call_id in results_by_call_id
+            ]
+        }
 
     builder = StateGraph(ResearchState)
     builder.add_node("route_tools", route_tools)

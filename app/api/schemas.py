@@ -102,6 +102,7 @@ class ArtifactResponse(BaseModel):
     failure: FailureResponse | None = Field(
         default=None,
         description="Versioned recovery metadata when status is error.",
+    )
     provenance: dict[str, object] | None = Field(
         default=None,
         description="Explicit provider, period, entity, and calculation metadata.",
