@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import (
+    MarketDataServiceUnavailableError,
     ResearchServiceUnavailableError,
     RunManagerUnavailableError,
     ThreadServiceUnavailableError,
@@ -88,6 +89,17 @@ def register_exception_handlers(api: FastAPI) -> None:
             status_code=503,
             code="persistence_unavailable",
             message="Persistent research threads are unavailable.",
+        )
+
+    @api.exception_handler(MarketDataServiceUnavailableError)
+    async def handle_unavailable_market_data(
+        _request: Request,
+        _error: Exception,
+    ) -> JSONResponse:
+        return error_response(
+            status_code=503,
+            code="market_data_unavailable",
+            message="Watchlist market data is unavailable.",
         )
 
     @api.exception_handler(ThreadNotFoundError)

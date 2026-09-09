@@ -16,6 +16,7 @@ from app.api.dependencies import (
 )
 from app.api.errors import register_exception_handlers
 from app.api.routes.health import router as health_router
+from app.api.routes.market import router as market_router
 from app.api.routes.readiness import router as readiness_router
 from app.api.routes.research import router as research_router
 from app.api.routes.runs import router as runs_router
@@ -30,9 +31,12 @@ from app.events.store import (
     RedisRunEventStore,
     RunEventStore,
 )
+from app.providers.yahoo import YahooFinanceProvider
+from app.services.company_research import CompanyResearchService
 from app.services.research_agent import ResearchAgentService
 from app.services.run_manager import DetachedRunManager
 from app.services.thread_research import ThreadResearchService
+from app.services.watchlist_market import WatchlistMarketService
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +45,7 @@ def create_app(
     research_service: ResearchAgentService | None = None,
     thread_research_service: ThreadResearchService | None = None,
     event_store: RunEventStore | None = None,
+    watchlist_market_service: WatchlistMarketService | None = None,
 ) -> FastAPI:
     """Create the API with an injectable or production research service."""
 
@@ -135,9 +140,20 @@ def create_app(
         ),
         lifespan=lifespan,
     )
+    api.state.watchlist_market_service = (
+        watchlist_market_service
+        or WatchlistMarketService(
+            CompanyResearchService(
+                YahooFinanceProvider(
+                    timeout_seconds=get_timeout_seconds("PROVIDER_TIMEOUT_SECONDS", 15)
+                )
+            )
+        )
+    )
     api.include_router(health_router)
     api.include_router(readiness_router)
     api.include_router(research_router)
+    api.include_router(market_router)
     api.include_router(threads_router)
     api.include_router(runs_router)
     register_exception_handlers(api)
