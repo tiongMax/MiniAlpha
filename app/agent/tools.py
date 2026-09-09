@@ -125,21 +125,24 @@ def format_price_history(history: PriceHistory) -> str:
     last = history.points[-1]
     change = (last.close / first.close - 1) if first.close else None
     closes = [point.close for point in history.points]
-    return "\n".join(
-        (
-            f"{history.symbol} price history ({history.period}, {history.interval})",
-            f"Observations: {len(history.points)}",
-            f"Start / latest close: "
-            f"{_format_money(first.close, history.currency)} / "
-            f"{_format_money(last.close, history.currency)}",
-            f"Period change: {_format_percentage(change)}",
-            f"Low / high close: {_format_money(min(closes), history.currency)} / "
-            f"{_format_money(max(closes), history.currency)}",
-            f"Source: {history.provider}",
-            f"Retrieved: {history.retrieved_at.isoformat()}",
-            "Note: provider data may be delayed or incomplete.",
-        )
+    lines = [
+        f"{history.symbol} price history ({history.period}, {history.interval})",
+        f"Observations: {len(history.points)}",
+        f"Latest observation: {last.timestamp.date().isoformat()}",
+        f"Start / latest close: "
+        f"{_format_money(first.close, history.currency)} / "
+        f"{_format_money(last.close, history.currency)}",
+        f"Period change: {_format_percentage(change)}",
+        f"Low / high close: {_format_money(min(closes), history.currency)} / "
+        f"{_format_money(max(closes), history.currency)}",
+        f"Source: {history.provider}",
+        f"Retrieved: {history.retrieved_at.isoformat()}",
+        "Note: provider data may be delayed or incomplete.",
+    ]
+    lines.extend(
+        f"Data quality warning: {warning}" for warning in history.quality_warnings
     )
+    return "\n".join(lines)
 
 
 def format_fundamental_dataset(dataset: FundamentalDataset) -> str:

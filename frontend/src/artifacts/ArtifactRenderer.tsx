@@ -29,6 +29,7 @@ interface PricePointData extends RecordValue {
   timestamp: string
   close: number
   volume?: number | null
+  repaired?: boolean
 }
 
 interface PriceHistoryData extends RecordValue {
@@ -39,6 +40,9 @@ interface PriceHistoryData extends RecordValue {
   points: PricePointData[]
   provider?: string
   retrieved_at?: string
+  latest_observation_at?: string | null
+  repaired_observations?: number
+  quality_warnings?: string[]
 }
 
 interface CompanyComparisonData extends RecordValue {
@@ -68,6 +72,8 @@ interface QuantitativeDatasetData extends RecordValue {
   provider?: string
   source_retrieved_at?: string
   calculated_at?: string
+  source_latest_observation_at?: string | null
+  quality_warnings?: string[]
 }
 
 const FUNDAMENTAL_ARTIFACTS = new Set([
@@ -178,6 +184,16 @@ function sourceLine(data: { provider?: string; retrieved_at?: string }): string 
   return [data.provider, date].filter(Boolean).join(' · ')
 }
 
+function observationDate(value: string | null | undefined): string {
+  if (!value) return 'Latest observation unavailable'
+  return `Latest observation ${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value))}`
+}
+
+function QualityWarnings({ warnings = [] }: { warnings?: string[] }) {
+  if (!warnings.length) return null
+  return <div className="quality-warnings" role="note">{warnings.map((warning) => <span key={warning}>{warning}</span>)}</div>
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return <div className="artifact-metric"><span>{label}</span><strong>{value}</strong></div>
 }
@@ -244,7 +260,7 @@ function PriceChart({ data }: { data: PriceHistoryData }) {
     <section className="price-card">
       <header className="artifact-header">
         <span className="artifact-icon"><ChartNoAxesCombined size={17} /></span>
-        <div><strong>{data.symbol} price history</strong><span>{data.period} · {data.interval} · {data.points.length} observations</span></div>
+        <div><strong>{data.symbol} price history</strong><span>{data.period} · {data.interval} · {data.points.length} observations</span><span className="latest-observation">{observationDate(data.latest_observation_at ?? data.points.at(-1)?.timestamp)}</span></div>
         <div className={`price-change ${positive ? 'positive' : 'negative'}`}><strong>{money(latest, data.currency)}</strong><span>{change === null ? '—' : `${change >= 0 ? '+' : ''}${percent(change)}`}</span></div>
       </header>
       <div className="chart-wrap">
@@ -258,6 +274,7 @@ function PriceChart({ data }: { data: PriceHistoryData }) {
         <div className="chart-axis"><span>{new Date(data.points[0].timestamp).toLocaleDateString()}</span><span>{new Date(data.points.at(-1)!.timestamp).toLocaleDateString()}</span></div>
       </div>
       <div className="chart-stats"><Metric label="Low close" value={money(minimum, data.currency)} /><Metric label="High close" value={money(maximum, data.currency)} /><Metric label="Period change" value={change === null ? '—' : percent(change)} /></div>
+      <QualityWarnings warnings={data.quality_warnings} />
       <footer className="artifact-source"><Database size={12} /> {sourceLine(data) || 'Source unavailable'}</footer>
     </section>
   )
@@ -324,17 +341,22 @@ function QuantitativeCard({ data }: { data: QuantitativeDatasetData }) {
   const parameters = Object.entries(data.parameters)
     .map(([key, value]) => `${key.replaceAll('_', ' ')}: ${String(value)}`)
     .join(' · ')
+  const lastSeriesTimestamp = data.series.at(-1)?.timestamp
+  const latestObservation = data.source_latest_observation_at ?? (
+    typeof lastSeriesTimestamp === 'string' ? lastSeriesTimestamp : null
+  )
   return (
     <section className="comparison-card">
       <header className="artifact-header">
         <span className="artifact-icon"><ChartNoAxesCombined size={17} /></span>
-        <div><strong>{data.analysis.replaceAll('_', ' ')}</strong><span>{data.symbols.join(', ')} · {data.period} · {data.interval}</span></div>
+        <div><strong>{data.analysis.replaceAll('_', ' ')}</strong><span>{data.symbols.join(', ')} · {data.period} · {data.interval}</span><span className="latest-observation">{observationDate(latestObservation)}</span></div>
       </header>
       {data.analysis === 'correlation_analysis' && <CorrelationTable data={data} />}
       {metrics.length > 0 && <div className="artifact-metrics">{metrics.map(([key, value]) =>
         <Metric key={key} label={key.replaceAll('_', ' ')} value={evidenceValue(value, key)} />,
       )}</div>}
       {parameters && <div className="company-tags"><span>{parameters}</span></div>}
+      <QualityWarnings warnings={data.quality_warnings} />
       <footer className="artifact-source"><Database size={12} /> {sourceLine({ provider: data.provider, retrieved_at: data.calculated_at }) || 'Calculation metadata unavailable'} · {data.series.length} series observations</footer>
     </section>
   )

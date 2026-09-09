@@ -60,6 +60,7 @@ class FakeHistory:
                         "Close": 101,
                         "Adj Close": 100.5,
                         "Volume": 10,
+                        "Repaired?": True,
                     },
                 ),
                 (
@@ -180,6 +181,9 @@ def test_maps_price_history_to_chart_ready_points(monkeypatch) -> None:
     assert result.currency == "USD"
     assert [point.close for point in result.points] == [101.0, 104.0]
     assert [point.adjusted_close for point in result.points] == [100.5, 103.5]
+    assert [point.repaired for point in result.points] == [True, False]
+    assert result.to_dict()["repaired_observations"] == 1
+    assert any("Yahoo repaired 1" in warning for warning in result.quality_warnings)
     assert result.points[0].timestamp == datetime(2026, 7, 1, tzinfo=UTC)
 
 

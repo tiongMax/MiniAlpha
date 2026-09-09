@@ -31,6 +31,8 @@ class QuantitativeDataset:
     provider: str
     source_retrieved_at: datetime
     calculated_at: datetime
+    source_latest_observation_at: datetime | None = None
+    quality_warnings: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -44,4 +46,10 @@ class QuantitativeDataset:
             "provider": self.provider,
             "source_retrieved_at": self.source_retrieved_at.isoformat(),
             "calculated_at": self.calculated_at.isoformat(),
+            "source_latest_observation_at": (
+                self.source_latest_observation_at.isoformat()
+                if self.source_latest_observation_at
+                else None
+            ),
+            "quality_warnings": list(self.quality_warnings),
         }
