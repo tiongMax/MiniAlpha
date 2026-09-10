@@ -112,6 +112,13 @@ export interface WatchlistMarketResponse {
   items: Array<WatchlistMarketItem | WatchlistMarketFailure>
 }
 
+export interface Account {
+  user_id: string
+  email: string
+  display_name: string
+  created_at: string
+}
+
 export interface ChatTurn {
   id: string
   turnIndex?: number

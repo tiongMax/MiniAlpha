@@ -313,6 +313,107 @@
 .assistant-toggle.selected {
   background: #eaf3ed;
 }
+.account-menu {
+  position: relative;
+}
+.account-button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 150px;
+  border: 0;
+  background: transparent;
+  color: #486155;
+  padding: 9px 5px;
+  font-size: 11px;
+}
+.account-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: 220px;
+  padding: 15px;
+  border: 1px solid #dfe6e1;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 16px 40px #1e382b20;
+}
+.account-popover strong {
+  font-size: 12px;
+}
+.account-popover small {
+  margin: 4px 0 14px;
+  color: #7b8982;
+  overflow-wrap: anywhere;
+}
+.account-popover .text-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.account-dialog-backdrop {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #10231b99;
+}
+.account-dialog {
+  position: relative;
+  width: min(410px, 100%);
+  padding: 30px;
+  border-radius: 10px;
+  background: #fbfcfa;
+  box-shadow: 0 24px 70px #07151055;
+}
+.account-dialog h2 {
+  margin: 11px 0 7px;
+  color: #203c30;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 27px;
+  font-weight: 400;
+}
+.account-dialog > p {
+  margin: 0 0 20px;
+  color: #74827b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.account-dialog form,
+.account-dialog label {
+  display: grid;
+  gap: 8px;
+}
+.account-dialog form {
+  gap: 14px;
+}
+.account-dialog label {
+  color: #506158;
+  font-size: 11px;
+}
+.account-dialog .primary-button {
+  justify-content: center;
+  margin-top: 4px;
+}
+.account-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+.account-mode {
+  width: 100%;
+  margin-top: 17px;
+  text-align: center;
+}
 .workspace-body {
   display: flex;
   flex: 1;
