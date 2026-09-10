@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.auth.service import normalize_display_name, normalize_email, validate_password
 from app.domain.errors import InvalidSymbolError
 from app.services.company_research import normalize_symbol
 
@@ -315,3 +316,52 @@ class WatchlistMarketResponse(BaseModel):
     """Ordered results for one batch market-data refresh."""
 
     items: list[WatchlistMarketItemResponse | WatchlistMarketFailureResponse]
+
+
+class AccountRegisterRequest(BaseModel):
+    """New account credentials and display identity."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=254)
+    display_name: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=12, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return normalize_email(value)
+
+    @field_validator("display_name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        return normalize_display_name(value)
+
+    @field_validator("password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        return validate_password(value)
+
+
+class AccountLoginRequest(BaseModel):
+    """Existing account credentials."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=12, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return normalize_email(value)
+
+
+class AccountResponse(BaseModel):
+    """Public current-user representation."""
+
+    user_id: UUID
+    email: str
+    display_name: str
+    created_at: datetime
+    auth_mode: Literal["session", "single_user"]

@@ -15,13 +15,16 @@ from app.api.dependencies import (
     create_thread_research_service,
 )
 from app.api.errors import register_exception_handlers
+from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
 from app.api.routes.market import router as market_router
 from app.api.routes.readiness import router as readiness_router
 from app.api.routes.research import router as research_router
 from app.api.routes.runs import router as runs_router
 from app.api.routes.threads import router as threads_router
+from app.auth.service import AuthService
 from app.config import (
+    get_boolean,
     get_positive_int,
     get_redis_url,
     get_timeout_seconds,
@@ -46,6 +49,7 @@ def create_app(
     thread_research_service: ThreadResearchService | None = None,
     event_store: RunEventStore | None = None,
     watchlist_market_service: WatchlistMarketService | None = None,
+    auth_service: AuthService | None = None,
 ) -> FastAPI:
     """Create the API with an injectable or production research service."""
 
@@ -56,6 +60,7 @@ def create_app(
         owned_cache_runtime = None
         owned_event_store = None
         run_manager = None
+        app.state.auth_service = auth_service
         if research_service is not None:
             app.state.research_service = research_service
             app.state.research_startup_failed = False
@@ -79,6 +84,14 @@ def create_app(
                 ) = await create_thread_research_service()
                 app.state.persistence_runtime = owned_runtime
                 app.state.persistence_startup_failed = False
+                if app.state.auth_service is None:
+                    app.state.auth_service = AuthService(
+                        owned_runtime.account_repository,
+                        session_ttl_seconds=get_positive_int(
+                            "AUTH_SESSION_TTL_SECONDS", 2_592_000
+                        ),
+                        single_user=get_boolean("AUTH_SINGLE_USER_MODE", False),
+                    )
             except Exception:
                 logger.exception("Persistent research composition failed")
                 app.state.thread_research_service = None
@@ -151,6 +164,7 @@ def create_app(
         )
     )
     api.include_router(health_router)
+    api.include_router(auth_router)
     api.include_router(readiness_router)
     api.include_router(research_router)
     api.include_router(market_router)

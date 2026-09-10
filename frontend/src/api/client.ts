@@ -1,4 +1,5 @@
 import type {
+  Account,
   ApiError,
   RunAcceptedResponse,
   RunEvent,
@@ -29,6 +30,47 @@ async function errorFrom(response: Response): Promise<HttpResponseError> {
   const message =
     body?.error?.message ?? body?.detail ?? `${response.status} ${response.statusText}`
   return new HttpResponseError(message, response.status)
+}
+
+export async function getCurrentAccount(signal?: AbortSignal): Promise<Account | null> {
+  const response = await fetch(`${API_BASE}/api/v1/auth/me`, {
+    credentials: 'include',
+    signal,
+  })
+  if (response.status === 401) return null
+  if (!response.ok) throw await errorFrom(response)
+  return (await response.json()) as Account
+}
+
+export async function registerAccount(input: {
+  email: string
+  display_name: string
+  password: string
+}): Promise<Account> {
+  return submitCredentials('/api/v1/auth/register', input)
+}
+
+export async function loginAccount(input: { email: string; password: string }): Promise<Account> {
+  return submitCredentials('/api/v1/auth/login', input)
+}
+
+async function submitCredentials(path: string, input: object): Promise<Account> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) throw await errorFrom(response)
+  return (await response.json()) as Account
+}
+
+export async function logoutAccount(): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/v1/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  if (!response.ok) throw await errorFrom(response)
 }
 
 export async function listThreads(signal?: AbortSignal): Promise<ThreadListResponse> {

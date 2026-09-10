@@ -8,6 +8,7 @@ from psycopg import AsyncConnection
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 
+from app.auth.postgres import PostgresAccountRepository
 from app.persistence.postgres import PostgresConversationRepository
 
 _REQUIRED_TABLES = (
@@ -20,8 +21,10 @@ _REQUIRED_TABLES = (
     "checkpoint_writes",
     "checkpoint_migrations",
     "semantic_research_cache",
+    "auth_users",
+    "auth_sessions",
 )
-_REQUIRED_ALEMBIC_REVISION = "005_structured_failures"
+_REQUIRED_ALEMBIC_REVISION = "006_user_accounts"
 
 
 async def _configure_connection(connection: AsyncConnection[DictRow]) -> None:
@@ -36,6 +39,7 @@ class PersistenceRuntime:
     pool: AsyncConnectionPool[AsyncConnection[DictRow]]
     checkpointer: AsyncPostgresSaver
     repository: PostgresConversationRepository
+    account_repository: PostgresAccountRepository
 
     @classmethod
     async def open(
@@ -67,6 +71,7 @@ class PersistenceRuntime:
                 pool=pool,
                 checkpointer=AsyncPostgresSaver(pool),
                 repository=PostgresConversationRepository(pool),
+                account_repository=PostgresAccountRepository(pool),
             )
             if not await runtime.is_ready():
                 raise RuntimeError(

@@ -8,6 +8,8 @@ from fastapi import Request
 from app.agent.graph import build_graph
 from app.agent.tool_registry import ToolRegistry
 from app.agent.tools import create_default_tools
+from app.auth.models import Account
+from app.auth.service import AuthenticationRequiredError, AuthService
 from app.cache.runtime import CacheRuntime
 from app.config import (
     create_model,
@@ -39,6 +41,10 @@ class RunManagerUnavailableError(RuntimeError):
 
 class MarketDataServiceUnavailableError(RuntimeError):
     """Raised when watchlist market data is unavailable."""
+
+
+class AuthServiceUnavailableError(RuntimeError):
+    """Raised when account persistence is unavailable."""
 
 
 async def create_research_service() -> tuple[ResearchAgentService, CacheRuntime | None]:
@@ -125,3 +131,25 @@ def get_watchlist_market_service(request: Request) -> WatchlistMarketService:
     if not isinstance(service, WatchlistMarketService):
         raise MarketDataServiceUnavailableError("Market data is unavailable.")
     return service
+
+
+def get_auth_service(request: Request) -> AuthService:
+    """Return the application-scoped authentication service."""
+    service = getattr(request.app.state, "auth_service", None)
+    if not isinstance(service, AuthService):
+        raise AuthServiceUnavailableError("Authentication is unavailable.")
+    return service
+
+
+async def get_optional_account(request: Request) -> Account | None:
+    """Resolve the current cookie without requiring authentication."""
+    service = get_auth_service(request)
+    return await service.resolve_session(request.cookies.get("minialpha_session"))
+
+
+async def get_current_account(request: Request) -> Account:
+    """Require and return a valid current account."""
+    account = await get_optional_account(request)
+    if account is None:
+        raise AuthenticationRequiredError("Sign in to continue.")
+    return account

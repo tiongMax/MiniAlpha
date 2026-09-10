@@ -14,6 +14,8 @@ import {
 } from 'lucide-react'
 import { useResearchChat } from './chat/useResearchChat'
 import { ResearchChat } from './chat/ResearchChat'
+import { AccountMenu } from './auth/AccountMenu'
+import { useAccount } from './auth/useAccount'
 import { usePersonalResearch } from './personal/usePersonalResearch'
 import { useWorkspace } from './workspace/useWorkspace'
 import { navigate, SYMBOL_PATTERN } from './workspace/model'
@@ -37,6 +39,7 @@ const navigation = [
 ] as const
 
 export default function App() {
+  const account = useAccount()
   const chat = useResearchChat()
   const personal = usePersonalResearch()
   const workspace = useWorkspace()
@@ -230,6 +233,7 @@ export default function App() {
               required
             />
           </form>
+          <AccountMenu controller={account} />
           {page !== 'assistant' && (
             <button
               className={`assistant-toggle ${assistantOpen ? 'selected' : ''}`}

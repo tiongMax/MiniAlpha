@@ -38,6 +38,21 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string, init?: RequestInit) => {
+      if (input.endsWith('/api/v1/auth/me')) {
+        return json({ error: { code: 'authentication_required', message: 'Sign in.' } }, 401)
+      }
+      if (input.endsWith('/api/v1/auth/register') || input.endsWith('/api/v1/auth/login')) {
+        return json({
+          user_id: '33333333-3333-4333-8333-333333333333',
+          email: 'analyst@example.com',
+          display_name: 'Research Analyst',
+          created_at: DATE,
+          auth_mode: 'session',
+        })
+      }
+      if (input.endsWith('/api/v1/auth/logout')) {
+        return new Response(null, { status: 204 })
+      }
       if (input.endsWith('/api/v1/market/watchlist')) {
         const symbols = JSON.parse(init?.body as string).symbols as string[]
         marketRequests.push(symbols)
@@ -108,6 +123,22 @@ beforeEach(() => {
       return json({ threads: [], total: 0, limit: 100, offset: 0 })
     }),
   )
+})
+
+it('creates an account and signs out from the workspace header', async () => {
+  const user = userEvent.setup()
+  mount()
+
+  await user.click(await screen.findByRole('button', { name: 'Sign in' }))
+  await user.click(screen.getByRole('button', { name: 'New to MiniAlpha? Create account' }))
+  await user.type(screen.getByLabelText('Display name'), 'Research Analyst')
+  await user.type(screen.getByLabelText('Email'), 'analyst@example.com')
+  await user.type(screen.getByLabelText('Password'), 'correct horse battery staple')
+  await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+  await user.click(await screen.findByRole('button', { name: /Research Analyst/ }))
+  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+  expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy()
 })
 
 it('loads one market-data batch and renders watchlist prices', async () => {
