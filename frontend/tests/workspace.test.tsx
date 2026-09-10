@@ -47,6 +47,7 @@ beforeEach(() => {
           email: 'analyst@example.com',
           display_name: 'Research Analyst',
           created_at: DATE,
+          auth_mode: 'session',
         })
       }
       if (input.endsWith('/api/v1/auth/logout')) {

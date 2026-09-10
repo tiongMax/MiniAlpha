@@ -24,6 +24,7 @@ from app.api.routes.runs import router as runs_router
 from app.api.routes.threads import router as threads_router
 from app.auth.service import AuthService
 from app.config import (
+    get_boolean,
     get_positive_int,
     get_redis_url,
     get_timeout_seconds,
@@ -89,6 +90,7 @@ def create_app(
                         session_ttl_seconds=get_positive_int(
                             "AUTH_SESSION_TTL_SECONDS", 2_592_000
                         ),
+                        single_user=get_boolean("AUTH_SINGLE_USER_MODE", False),
                     )
             except Exception:
                 logger.exception("Persistent research composition failed")

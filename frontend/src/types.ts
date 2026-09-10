@@ -117,6 +117,7 @@ export interface Account {
   email: string
   display_name: string
   created_at: string
+  auth_mode: 'session' | 'single_user'
 }
 
 export interface ChatTurn {

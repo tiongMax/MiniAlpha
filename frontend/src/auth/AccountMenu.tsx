@@ -47,19 +47,23 @@ export function AccountMenu({ controller }: { controller: AccountController }) {
           <div className="account-popover">
             <strong>{controller.account.display_name}</strong>
             <small>{controller.account.email}</small>
-            <button
-              className="text-button"
-              disabled={pending}
-              onClick={() => {
-                setPending(true)
-                void controller.logout().finally(() => {
-                  setPending(false)
-                  setOpen(false)
-                })
-              }}
-            >
-              <LogOut size={13} /> Sign out
-            </button>
+            {controller.account.auth_mode === 'single_user' ? (
+              <span className="subtle-badge">Single-user mode</span>
+            ) : (
+              <button
+                className="text-button"
+                disabled={pending}
+                onClick={() => {
+                  setPending(true)
+                  void controller.logout().finally(() => {
+                    setPending(false)
+                    setOpen(false)
+                  })
+                }}
+              >
+                <LogOut size={13} /> Sign out
+              </button>
+            )}
           </div>
         )}
       </div>

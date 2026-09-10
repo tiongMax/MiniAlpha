@@ -130,3 +130,31 @@ def test_auth_api_validates_credentials_before_hashing() -> None:
         assert response.status_code == 422
 
     asyncio.run(exercise())
+
+
+def test_single_user_mode_resolves_one_identity_without_a_cookie() -> None:
+    """Personal installations can bypass login without losing stable ownership."""
+
+    async def exercise() -> None:
+        auth = AuthService(
+            InMemoryAccountRepository(),
+            session_ttl_seconds=3600,
+            single_user=True,
+        )
+        app = create_app(research_service(SuccessfulGraph()), auth_service=auth)
+        transport = ASGITransport(app=app)
+        async with app.router.lifespan_context(app):
+            async with AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                first = await client.get("/api/v1/auth/me")
+                second = await client.get("/api/v1/auth/me")
+
+        assert first.status_code == 200
+        assert first.json()["auth_mode"] == "single_user"
+        assert first.json()["display_name"] == "Local workspace"
+        assert first.json()["user_id"] == second.json()["user_id"]
+        assert "set-cookie" not in first.headers
+
+    asyncio.run(exercise())

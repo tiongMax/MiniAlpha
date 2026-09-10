@@ -8,10 +8,14 @@ from datetime import UTC, datetime, timedelta
 
 from app.auth.models import Account
 from app.auth.passwords import hash_password, verify_password
-from app.auth.repository import AccountRepository
+from app.auth.repository import (
+    AccountRepository,
+    EmailAlreadyRegisteredError,
+)
 
 _EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _DUMMY_HASH = hash_password("not-a-real-user-password")
+_LOCAL_EMAIL = "local@minialpha.invalid"
 
 
 class InvalidCredentialsError(RuntimeError):
@@ -48,9 +52,16 @@ def validate_password(password: str) -> str:
 class AuthService:
     """Coordinate account persistence and rotating opaque sessions."""
 
-    def __init__(self, repository: AccountRepository, *, session_ttl_seconds: int):
+    def __init__(
+        self,
+        repository: AccountRepository,
+        *,
+        session_ttl_seconds: int,
+        single_user: bool = False,
+    ):
         self._repository = repository
         self.session_ttl_seconds = session_ttl_seconds
+        self.single_user = single_user
 
     async def register(
         self, *, email: str, display_name: str, password: str
@@ -76,6 +87,8 @@ class AuthService:
         return credentials.account, await self._create_session(credentials.account)
 
     async def resolve_session(self, token: str | None) -> Account | None:
+        if self.single_user:
+            return await self._local_account()
         if not token:
             return None
         return await self._repository.get_account_by_session(
@@ -95,6 +108,27 @@ class AuthService:
             expires_at=expires_at,
         )
         return token
+
+    async def _local_account(self) -> Account:
+        """Return one stable database identity for personal installations."""
+        credentials = await self._repository.get_credentials(_LOCAL_EMAIL)
+        if credentials is not None:
+            return credentials.account
+        password_hash = await asyncio.to_thread(
+            hash_password,
+            secrets.token_urlsafe(32),
+        )
+        try:
+            return await self._repository.create_account(
+                email=_LOCAL_EMAIL,
+                display_name="Local workspace",
+                password_hash=password_hash,
+            )
+        except EmailAlreadyRegisteredError:
+            credentials = await self._repository.get_credentials(_LOCAL_EMAIL)
+            if credentials is None:
+                raise
+            return credentials.account
 
     @staticmethod
     def _token_hash(token: str) -> bytes:

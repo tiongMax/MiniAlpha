@@ -364,3 +364,4 @@ class AccountResponse(BaseModel):
     email: str
     display_name: str
     created_at: datetime
+    auth_mode: Literal["session", "single_user"]

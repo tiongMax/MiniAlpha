@@ -119,6 +119,11 @@ This foundation does not yet assign existing conversations or browser-local
 workspace data to an account; that ownership change is intentionally deferred
 to the server-side workspace persistence milestone.
 
+For a private installation that should never show a login step, set
+`AUTH_SINGLE_USER_MODE=true`. MiniAlpha will create one stable local database
+identity automatically and use it for every request. Do not enable this mode on
+a server reachable by other users because it intentionally bypasses login.
+
 ### Durable Research (With UI)
 You can directly interact via API for persistent multi-turn conversations:
 

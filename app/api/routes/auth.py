@@ -1,6 +1,6 @@
 """Account registration and cookie-session endpoints."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
@@ -16,12 +16,17 @@ CurrentAccount = Annotated[Account, Depends(get_current_account)]
 COOKIE_NAME = "minialpha_session"
 
 
-def _response(account: Account) -> AccountResponse:
+def _response(
+    account: Account,
+    *,
+    auth_mode: Literal["session", "single_user"] = "session",
+) -> AccountResponse:
     return AccountResponse(
         user_id=account.user_id,
         email=account.email,
         display_name=account.display_name,
         created_at=account.created_at,
+        auth_mode=auth_mode,
     )
 
 
@@ -79,6 +84,9 @@ async def logout(request: Request, service: Auth) -> Response:
 
 
 @router.get("/me", response_model=AccountResponse)
-async def current_account(account: CurrentAccount) -> AccountResponse:
+async def current_account(account: CurrentAccount, service: Auth) -> AccountResponse:
     """Return the identity associated with the current session."""
-    return _response(account)
+    return _response(
+        account,
+        auth_mode="single_user" if service.single_user else "session",
+    )
