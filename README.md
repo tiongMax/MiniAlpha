@@ -97,6 +97,28 @@ uv run ruff format --check .
 
 ## 💻 API & Research Workflows
 
+### User Accounts
+
+Registering or signing in issues an opaque `HttpOnly`, `SameSite=Lax` session
+cookie. Only a SHA-256 digest of that token is stored in PostgreSQL, so sessions
+can be revoked without retaining browser credentials. Set
+`AUTH_COOKIE_SECURE=true` when serving the API over HTTPS.
+
+```powershell
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+$body = @{
+  email = "analyst@example.com"
+  display_name = "Research Analyst"
+  password = "choose-at-least-12-characters"
+} | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/auth/register -ContentType application/json -Body $body -WebSession $session
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/auth/me -WebSession $session
+```
+
+This foundation does not yet assign existing conversations or browser-local
+workspace data to an account; that ownership change is intentionally deferred
+to the server-side workspace persistence milestone.
+
 ### Durable Research (With UI)
 You can directly interact via API for persistent multi-turn conversations:
 
@@ -122,6 +144,7 @@ uv run python cli.py
 ## 🗺️ Code Map
 ```text
 app/config.py                    model and database configuration
+app/auth/                        password, account, and session boundaries
 app/agent/                       explicit graph, state, tools, and routing
 app/api/main.py                  FastAPI factory, lifespan, and error mapping
 app/api/routes/                  health, readiness, stateless, and thread routes

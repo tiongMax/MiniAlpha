@@ -23,6 +23,7 @@ def test_persistence_runtime_opens_verifies_and_closes() -> None:
         runtime = await PersistenceRuntime.open(database_url)
         assert await runtime.is_ready() is True
         assert runtime.repository is not None
+        assert runtime.account_repository is not None
         assert runtime.checkpointer is not None
         await runtime.close()
         assert await runtime.is_ready() is False
