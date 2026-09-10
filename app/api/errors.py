@@ -6,12 +6,15 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import (
+    AuthServiceUnavailableError,
     MarketDataServiceUnavailableError,
     ResearchServiceUnavailableError,
     RunManagerUnavailableError,
     ThreadServiceUnavailableError,
 )
 from app.api.schemas import ErrorDetail, ErrorResponse
+from app.auth.repository import AccountPersistenceError, EmailAlreadyRegisteredError
+from app.auth.service import AuthenticationRequiredError, InvalidCredentialsError
 from app.persistence.repository import (
     CheckpointConflictError,
     ConversationPersistenceError,
@@ -100,6 +103,53 @@ def register_exception_handlers(api: FastAPI) -> None:
             status_code=503,
             code="market_data_unavailable",
             message="Watchlist market data is unavailable.",
+        )
+
+    @api.exception_handler(AuthServiceUnavailableError)
+    @api.exception_handler(AccountPersistenceError)
+    async def handle_unavailable_auth(
+        _request: Request,
+        _error: Exception,
+    ) -> JSONResponse:
+        return error_response(
+            status_code=503,
+            code="authentication_unavailable",
+            message="Account services are temporarily unavailable.",
+        )
+
+    @api.exception_handler(AuthenticationRequiredError)
+    async def handle_authentication_required(
+        _request: Request,
+        _error: Exception,
+    ) -> JSONResponse:
+        response = error_response(
+            status_code=401,
+            code="authentication_required",
+            message="Sign in to continue.",
+        )
+        response.headers["WWW-Authenticate"] = "Session"
+        return response
+
+    @api.exception_handler(InvalidCredentialsError)
+    async def handle_invalid_credentials(
+        _request: Request,
+        _error: Exception,
+    ) -> JSONResponse:
+        return error_response(
+            status_code=401,
+            code="invalid_credentials",
+            message="Email or password is incorrect.",
+        )
+
+    @api.exception_handler(EmailAlreadyRegisteredError)
+    async def handle_registered_email(
+        _request: Request,
+        _error: Exception,
+    ) -> JSONResponse:
+        return error_response(
+            status_code=409,
+            code="email_already_registered",
+            message="An account already exists for that email address.",
         )
 
     @api.exception_handler(ThreadNotFoundError)
